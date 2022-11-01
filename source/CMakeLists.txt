@@ -18,13 +18,15 @@ set(SHADER_COMPILE_TARGET SirionShader)
 # Add include for 3rd-party dependencies
 include_directories("${SIRION_ROOT_DIR}/external/glfw/include")
 include_directories("${SIRION_ROOT_DIR}/external/freeglut/include")
-
-# Build 3rd-party tools
-file(GLOB FREEGLUT_LIBRARIES ${PROJECT_LIBRARY_DIR}/freeglut/*.lib)
-set(GLFW_LIBRARY ${PROJECT_LIBRARY_DIR}/glfw/glfw3.lib)
-# set(FREEGLUT_LIBRARY ${PROJECT_LIBRARY_DIR}/freeglut/*.lib)
+include_directories("${SIRION_ROOT_DIR}/external/json11")
+include_directories("${SIRION_ROOT_DIR}/external/eigen")
 
 
-add_subdirectory ("main")
-add_subdirectory ("shader")
 add_subdirectory ("external")
+add_subdirectory ("shader")
+add_subdirectory ("particle_system")
+add_subdirectory ("physics")
+add_subdirectory ("renderer")
+add_subdirectory ("simulation")
+add_subdirectory ("solver")
+add_subdirectory ("main")

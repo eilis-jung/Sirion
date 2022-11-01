@@ -10,24 +10,29 @@ foreach( OUTPUTCONFIG ${CMAKE_CONFIGURATION_TYPES} )
     set( CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${PROJECT_LIBRARY_DIR})
 endforeach( OUTPUTCONFIG CMAKE_CONFIGURATION_TYPES )
 
-set(CURR_PROJECT_SOURCE_DIR "${SIRION_ROOT_DIR}/main")
-# set(CURR_PROJECT_HEADER_DIR "${SIRION_ROOT_DIR}/main")
+set(CURR_PROJECT_SOURCE_DIR "${SIRION_ROOT_DIR}/renderer/src")
+set(CURR_PROJECT_HEADER_DIR "${SIRION_ROOT_DIR}/renderer/include")
 include_directories("include")
 
-file(GLOB_RECURSE SOURCES "*.cpp" "*.h")
+file(GLOB_RECURSE SOURCES
+    src/*.cpp
+)
+file(GLOB_RECURSE HEADERS
+    include/*.h
+)
 
-add_executable(SirionMain ${SOURCES})
-add_dependencies(SirionMain json11 freeglut glfw SirionShader)
+add_library(SirionRenderer ${SOURCES} ${HEADERS})
+add_dependencies(SirionRenderer freeglut glfw)
 
 # Build 3rd-party tools
 file(GLOB FREEGLUT_LIBRARIES ${PROJECT_LIBRARY_DIR}/freeglut/*.lib)
-file(GLOB JSON_LIBRARY ${PROJECT_LIBRARY_DIR}/json11/*.lib)
 file(GLOB GLFW_LIBRARY ${PROJECT_LIBRARY_DIR}/glfw/glfw3.lib)
 
-target_link_libraries(SirionMain ${GLFW_LIBRARY} ${FREEGLUT_LIBRARIES} ${JSON_LIBRARY})
+target_link_libraries(SirionRenderer ${GLFW_LIBRARY} ${FREEGLUT_LIBRARIES})
 
 source_group(TREE ${CURR_PROJECT_SOURCE_DIR} FILES ${SOURCES})
+source_group(TREE ${CURR_PROJECT_HEADER_DIR} FILES ${HEADERS})
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
-  set_property(TARGET SirionMain PROPERTY CXX_STANDARD 20)
+  set_property(TARGET SirionRenderer PROPERTY CXX_STANDARD 20)
 endif()

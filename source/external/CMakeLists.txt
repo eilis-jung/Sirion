@@ -46,6 +46,7 @@ include_directories("glm")
 set(DEPENDENCIES
 	"glfw"
     "freeglut"
+    "json11"
 )
 
 buildDependencies()
