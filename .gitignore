@@ -1,6 +1,12 @@
 ## Generated shader files
-VulkanPractice/include/shaders/
-VulkanPractice/shaders/generated/
+source/shader/generated/
+
+## Generated build results
+build/
+bin/
+
+## Generated libs
+libs/
 
 .vs/
 ## Generated CMake build results
