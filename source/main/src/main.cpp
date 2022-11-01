@@ -26,9 +26,18 @@ int main(int argc, char** argv) {
 	// register callbacks
 	glutDisplayFunc(renderScene);
 
-	// enter GLUT event processing cycle
+	glutIdleFunc(IdleCallback);
 	glutMainLoop();
 
-	return 1;
+	glutMouseFunc(MouseCallback);
+	glutMotionFunc(MotionCallback);
+	glutKeyboardFunc(KeyboardCallback);
+	glutSpecialFunc(SpecialKeyboardCallback);
+	glutSpecialUpFunc(SpecialKeyboardUpCallback);
+	glutReshapeFunc(ReshapeCallback);
+	atexit(ExitCallback);
+	glutDisplayFunc(RenderCallback);
+
+
 	return 0;
 }
