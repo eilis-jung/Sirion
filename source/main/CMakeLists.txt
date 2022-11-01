@@ -24,3 +24,7 @@ file(GLOB HEADERS
 add_executable(SirionMain ${SOURCES} ${HEADERS})
 add_dependencies(SirionMain glfw SirionShader)
 target_link_libraries(SirionMain ${GLFW_LIBRARY})
+
+if (CMAKE_VERSION VERSION_GREATER 3.12)
+  set_property(TARGET SirionMain PROPERTY CXX_STANDARD 20)
+endif()

@@ -5,8 +5,6 @@ function(compile_shader SHADERS TARGET_NAME SHADER_INCLUDE_FOLDER GENERATED_DIR 
     set(ALL_GENERATED_SPV_FILES "")
     set(ALL_GENERATED_CPP_FILES "")
 
-    
-
     if(UNIX)
         execute_process(COMMAND chmod a+x ${GLSLANG_BIN})
     endif()
@@ -37,8 +35,6 @@ function(compile_shader SHADERS TARGET_NAME SHADER_INCLUDE_FOLDER GENERATED_DIR 
         list(APPEND ALL_GENERATED_CPP_FILES ${CPP_FILE})
 
     endforeach()
-
-    MESSAGE(${TARGET_NAME})
 
     add_custom_target(${TARGET_NAME}
         DEPENDS ${ALL_GENERATED_SPV_FILES} ${ALL_GENERATED_CPP_FILES} SOURCE ${SHADERS})
