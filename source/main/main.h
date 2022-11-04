@@ -1,7 +1,6 @@
 #pragma once
 
 #include "serializer/reflection.h"
-#include "serializer/serializer.h"
 
 namespace Sirion
 {

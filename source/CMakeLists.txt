@@ -38,12 +38,7 @@ include_directories("${SIRION_EXTERNAL_DIR}/json11")
 include_directories("${SIRION_EXTERNAL_DIR}/eigen")
 include_directories("${SIRION_EXTERNAL_DIR}/imgui")
 
-
-
-
-
 add_subdirectory ("external")
-
 add_subdirectory ("shader")
 add_subdirectory ("particle_system")
 add_subdirectory ("physics")

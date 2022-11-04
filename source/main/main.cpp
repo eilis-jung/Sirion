@@ -1,6 +1,7 @@
 
-#include "core/core.h"
 #include "main.h"
+#include "_generated/serializer/all_serializer.h"
+
 #include <filesystem>
 #include <fstream>
 #include <iostream>

@@ -1,5 +1,6 @@
 ## Generated shader files
 source/shader/generated/
+_generated
 
 ## Generated build results
 build/
