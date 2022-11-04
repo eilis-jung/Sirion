@@ -22,7 +22,7 @@ file(GLOB_RECURSE HEADERS
 )
 
 add_library(SirionRenderer ${SOURCES} ${HEADERS})
-add_dependencies(SirionRenderer freeglut glfw)
+add_dependencies(SirionRenderer glfw)
 
 # Build 3rd-party tools
 file(GLOB_RECURSE FREEGLUT_LIBRARIES ${PROJECT_LIBRARY_DIR}/freeglut/*.lib)

@@ -39,13 +39,11 @@ endfunction(buildDependencies)
 
 # Add include for 3rd-party dependencies
 include_directories("glfw/include")
-include_directories("freeglut/include")
 include_directories("glm")
 
 # Build 3rd-party tools
 set(DEPENDENCIES
 	"glfw"
-    "freeglut"
 )
 
 buildDependencies()

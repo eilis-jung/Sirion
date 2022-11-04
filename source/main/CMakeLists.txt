@@ -19,19 +19,23 @@ set(json_lib_dir ${SIRION_EXTERNAL_DIR}/lib/json11)
 
 add_library(json11 ${json_include}/json11.cpp)
 
-file(GLOB_RECURSE GENERATED "${CURR_PROJECT_SOURCE_DIR}/meta_parser/parser/*.cpp" "${CURR_PROJECT_SOURCE_DIR}/meta_parser/parser/*.h")
-file(GLOB_RECURSE SOURCES "*.cpp" "*.h")
+# file(GLOB_RECURSE GENERATED "${CURR_PROJECT_SOURCE_DIR}/meta_parser/parser/*.cpp" "${CURR_PROJECT_SOURCE_DIR}/meta_parser/parser/*.h")
+file(GLOB_RECURSE SOURCES "*.cpp")
+file(GLOB_RECURSE HEADERS "*.h")
 
 # Build 3rd-party tools
 file(GLOB_RECURSE FREEGLUT_LIBRARIES ${PROJECT_LIBRARY_DIR}/freeglut/*.lib)
 file(GLOB GLFW_LIBRARY ${PROJECT_LIBRARY_DIR}/glfw/glfw3.lib)
 
-source_group(TREE ${CURR_PROJECT_SOURCE_DIR} FILES ${SOURCES})
+source_group(TREE ${CURR_PROJECT_SOURCE_DIR} FILES ${SOURCES} ${HEADERS})
 
-message(${GENERATED})
-add_executable(SirionMain ${SOURCES} ${GENERATED})
-add_dependencies(SirionMain freeglut glfw SirionShader SirionParser)
+add_executable(SirionMain ${SOURCES} ${HEADERS})
+add_dependencies(SirionMain glfw SirionShader)
 target_link_libraries(SirionMain ${GLFW_LIBRARY} ${FREEGLUT_LIBRARIES} ${Vulkan_LIBRARY})
+
+### precompile
+# set global vari used by precompile
+set(SIRION_MAIN_HEADERS " ${HEADERS}" PARENT_SCOPE)
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET SirionMain PROPERTY CXX_STANDARD 20)

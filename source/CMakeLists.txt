@@ -43,7 +43,7 @@ include_directories("${SIRION_EXTERNAL_DIR}/imgui")
 
 
 add_subdirectory ("external")
-add_subdirectory("main/meta_parser")
+
 add_subdirectory ("shader")
 add_subdirectory ("particle_system")
 add_subdirectory ("physics")
@@ -51,3 +51,11 @@ add_subdirectory ("renderer")
 add_subdirectory ("simulation")
 add_subdirectory ("solver")
 add_subdirectory ("main")
+add_subdirectory("meta_parser")
+
+include(${SIRION_ROOT_DIR}/precompile/precompile.cmake)
+
+set(CODEGEN_TARGET "SirionPreCompile")
+
+add_dependencies(SirionMain "${CODEGEN_TARGET}")
+add_dependencies("${CODEGEN_TARGET}" "SirionParser")
