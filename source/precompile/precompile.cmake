@@ -32,11 +32,11 @@ elseif(CMAKE_HOST_APPLE)
     set(sys_include "${osx_sdk_platform_path_test}/../../Toolchains/XcodeDefault.xctoolchain/usr/include/c++/v1") 
 endif()
 
-set (PARSER_INPUT ${SIRION_ROOT_DIR}/meta_parser/parser/parser_header.h)
+set (PARSER_INPUT ${CMAKE_BINARY_DIR}/parser_header.h)
+set (TEMPLATE_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/meta_parser)
 ### BUILDING ====================================================================================
 set(PRECOMPILE_TARGET "SirionPreCompile")
 
-message(${PRECOMPILE_PARSER} "${PRECOMPILE_PARAMS_PATH}"  "${PARSER_INPUT}"  "${SIRION_ROOT_DIR}" ${sys_include} "Sirion" 0)
 # Called first time when building target 
 add_custom_target(${PRECOMPILE_TARGET} ALL
 
@@ -53,7 +53,7 @@ COMMAND
   ${CMAKE_COMMAND} -E echo "************************************************************* "
 
 COMMAND
-    ${PRECOMPILE_PARSER} "${PRECOMPILE_PARAMS_PATH}"  "${PARSER_INPUT}"  "${SIRION_ROOT_DIR}" ${sys_include} "Sirion" 0
+    ${PRECOMPILE_PARSER} "${PRECOMPILE_PARAMS_PATH}"  "${PARSER_INPUT}"  "${SIRION_ROOT_DIR}" "${TEMPLATE_ROOT_DIR}" ${sys_include} "Sirion" 0
 ### BUILDING ====================================================================================
 COMMAND
     ${CMAKE_COMMAND} -E echo "+++ Precompile finished +++"

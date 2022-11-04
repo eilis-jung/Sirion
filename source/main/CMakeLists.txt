@@ -25,14 +25,13 @@ file(GLOB_RECURSE HEADERS "*.h")
 # file(GLOB_RECURSE HEADERS "*.h")
 
 # Build 3rd-party tools
-file(GLOB_RECURSE FREEGLUT_LIBRARIES ${PROJECT_LIBRARY_DIR}/freeglut/*.lib)
 file(GLOB GLFW_LIBRARY ${PROJECT_LIBRARY_DIR}/glfw/glfw3.lib)
 
 source_group(TREE ${CURR_PROJECT_SOURCE_DIR} FILES ${SOURCES} ${HEADERS})
 
 add_executable(SirionMain ${SOURCES} ${HEADERS})
 add_dependencies(SirionMain glfw SirionShader)
-target_link_libraries(SirionMain ${GLFW_LIBRARY} ${FREEGLUT_LIBRARIES} ${Vulkan_LIBRARY})
+target_link_libraries(SirionMain ${GLFW_LIBRARY} ${Vulkan_LIBRARY})
 target_include_directories(
   SirionMain
   PUBLIC $<BUILD_INTERFACE:${SIRION_ROOT_DIR}>)

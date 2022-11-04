@@ -47,10 +47,3 @@ set(DEPENDENCIES
 )
 
 buildDependencies()
-
-
-
-
-
-# External Libs
-# add_subdirectory_with_folder("GLUT" freeglut)

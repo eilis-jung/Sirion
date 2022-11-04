@@ -20,6 +20,7 @@ public:
     MetaParser(const std::string project_input_file,
                const std::string include_file_path,
                const std::string include_path,
+               const std::string template_path,
                const std::string include_sys,
                const std::string module_name,
                bool              is_show_errors);
@@ -32,6 +33,7 @@ private:
     std::string m_project_input_file;
 
     std::vector<std::string> m_work_paths;
+    std::string              m_template_path;
     std::string              m_module_name;
     std::string              m_sys_include;
     std::string              m_source_include_file_name;
