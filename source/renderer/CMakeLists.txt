@@ -25,7 +25,7 @@ add_library(SirionRenderer ${SOURCES} ${HEADERS})
 add_dependencies(SirionRenderer freeglut glfw)
 
 # Build 3rd-party tools
-file(GLOB FREEGLUT_LIBRARIES ${PROJECT_LIBRARY_DIR}/freeglut/*.lib)
+file(GLOB_RECURSE FREEGLUT_LIBRARIES ${PROJECT_LIBRARY_DIR}/freeglut/*.lib)
 file(GLOB GLFW_LIBRARY ${PROJECT_LIBRARY_DIR}/glfw/glfw3.lib)
 
 target_link_libraries(SirionRenderer ${GLFW_LIBRARY} ${FREEGLUT_LIBRARIES})

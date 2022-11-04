@@ -4,12 +4,12 @@
 [submodule "source/external/glm"]
 	path = source/external/glm
 	url = https://github.com/g-truc/glm.git
-[submodule "source/external/freeglut"]
-	path = source/external/freeglut
-	url = https://github.com/FreeGLUTProject/freeglut.git
 [submodule "source/external/eigen"]
 	path = source/external/eigen
 	url = https://gitlab.com/libeigen/eigen.git
 [submodule "source/external/json11"]
 	path = source/external/json11
 	url = https://github.com/dropbox/json11.git
+[submodule "source/external/imgui"]
+	path = source/external/imgui
+	url = https://github.com/ocornut/imgui.git
