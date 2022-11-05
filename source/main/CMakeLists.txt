@@ -12,12 +12,6 @@ endforeach( OUTPUTCONFIG CMAKE_CONFIGURATION_TYPES )
 
 set(CURR_PROJECT_SOURCE_DIR "${SIRION_ROOT_DIR}/main")
 
-
-
-set(json_include ${SIRION_EXTERNAL_DIR}/json11)
-
-add_library(json11 ${json_include}/json11.cpp)
-
 # file(GLOB_RECURSE GENERATED "${CURR_PROJECT_SOURCE_DIR}/meta_parser/parser/*.cpp" "${CURR_PROJECT_SOURCE_DIR}/meta_parser/parser/*.h")
 file(GLOB_RECURSE SOURCES "*.cpp")
 file(GLOB_RECURSE HEADERS "*.h")
@@ -30,7 +24,7 @@ file(GLOB JSON_LIBRARY ${PROJECT_LIBRARY_DIR}/json11.lib)
 source_group(TREE ${CURR_PROJECT_SOURCE_DIR} FILES ${SOURCES} ${HEADERS})
 
 add_executable(SirionMain ${SOURCES} ${HEADERS})
-add_dependencies(SirionMain glfw SirionShader)
+add_dependencies(SirionMain glfw json11 SirionShader)
 target_link_libraries(SirionMain ${GLFW_LIBRARY} ${Vulkan_LIBRARY} ${JSON_LIBRARY})
 target_include_directories(
   SirionMain

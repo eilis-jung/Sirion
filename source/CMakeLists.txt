@@ -51,6 +51,6 @@ add_subdirectory("meta_parser")
 include(${SIRION_ROOT_DIR}/precompile/precompile.cmake)
 
 set(CODEGEN_TARGET "SirionPreCompile")
-
+set_target_properties(${CODEGEN_TARGET} PROPERTIES FOLDER "Tools")
 add_dependencies(SirionMain "${CODEGEN_TARGET}")
 add_dependencies("${CODEGEN_TARGET}" "SirionParser")

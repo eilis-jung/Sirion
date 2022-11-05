@@ -26,8 +26,7 @@ function(buildDependency DEPENDENCY_NAME)
         set( CMAKE_LIBRARY_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${PROJECT_LIBRARY_DIR}/${DEPENDENCY_NAME})
         set( CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${PROJECT_LIBRARY_DIR}/${DEPENDENCY_NAME})
     endforeach( OUTPUTCONFIG CMAKE_CONFIGURATION_TYPES )
-    # add_subdirectory(${DEPENDENCY_NAME})
-    add_subdirectory_with_folder(${DEPENDENCY_NAME} ${DEPENDENCY_NAME})
+    add_subdirectory_with_folder("external" ${DEPENDENCY_NAME})
 endfunction(buildDependency)
 
 # Build all dependencies
@@ -47,3 +46,6 @@ set(DEPENDENCIES
 )
 
 buildDependencies()
+set(json_include ${SIRION_EXTERNAL_DIR}/json11)
+add_library(json11 ${json_include}/json11.cpp)
+set_target_properties(json11 PROPERTIES FOLDER "External")
