@@ -23,7 +23,7 @@ file(GLOB GLFW_LIBRARY ${PROJECT_LIBRARY_DIR}/glfw/glfw3.lib)
 source_group(TREE ${CURR_PROJECT_SOURCE_DIR} FILES ${SOURCES} ${HEADERS})
 
 add_executable(SirionMain ${SOURCES} ${HEADERS})
-add_dependencies(SirionMain glfw json11 SirionShader)
+add_dependencies(SirionMain SirionPrecompile glfw json11 SirionShader)
 target_link_libraries(SirionMain glfw ${Vulkan_LIBRARY} json11)
 target_include_directories(
   SirionMain

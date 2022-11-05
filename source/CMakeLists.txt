@@ -36,6 +36,7 @@ include_directories("${SIRION_EXTERNAL_DIR}/json11")
 include_directories("${SIRION_EXTERNAL_DIR}/eigen")
 include_directories("${SIRION_EXTERNAL_DIR}/imgui")
 
+# Sub-projects
 add_subdirectory ("external")
 add_subdirectory ("shader")
 add_subdirectory ("particle_system")
@@ -44,11 +45,4 @@ add_subdirectory ("renderer")
 add_subdirectory ("simulation")
 add_subdirectory ("solver")
 add_subdirectory ("main")
-add_subdirectory("meta_parser")
-
-# Precompile
-include(${SIRION_ROOT_DIR}/precompile/precompile.cmake)
-set(PRECOMPILE_TARGET "SirionPreCompile")
-set_target_properties(${PRECOMPILE_TARGET} PROPERTIES FOLDER "Tools")
-add_dependencies(SirionMain "${PRECOMPILE_TARGET}")
-add_dependencies("${PRECOMPILE_TARGET}" "SirionParser")
+add_subdirectory ("meta")
