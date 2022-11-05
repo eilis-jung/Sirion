@@ -16,7 +16,6 @@ endif()
 # Vulkan
 set(GLSLANG_VALIDATOR_PATH "${VULKAN_PATH}/Bin/glslangValidator.exe")
 set(WIN_VULKAN_LIB "${VULKAN_PATH}/Lib")
-
 IF(WIN32)
 	IF (NOT Vulkan_FOUND)
 		find_library(Vulkan_LIBRARY NAMES vulkan-1 vulkan PATHS ${WIN_VULKAN_LIB})
@@ -39,7 +38,8 @@ include_directories("${SIRION_EXTERNAL_DIR}/imgui")
 # Sub-projects
 add_subdirectory ("external")
 add_subdirectory ("shader")
-add_subdirectory ("particle_system")
+add_subdirectory ("primitives")
+add_subdirectory ("particles")
 add_subdirectory ("physics")
 add_subdirectory ("renderer")
 add_subdirectory ("simulation")

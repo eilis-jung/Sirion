@@ -1,37 +1,26 @@
-﻿cmake_minimum_required (VERSION 3.8)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_LIBRARY_DIR})
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_LIBRARY_DIR})
+﻿include(${PROJECT_SOURCE_DIR}/cmake/base.cmake)
 
-foreach( OUTPUTCONFIG ${CMAKE_CONFIGURATION_TYPES} )
-    string( TOUPPER ${OUTPUTCONFIG} OUTPUTCONFIG )
-    set( CMAKE_RUNTIME_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${PROJECT_BINARY_DIR})
-    set( CMAKE_LIBRARY_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${PROJECT_LIBRARY_DIR})
-    set( CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${PROJECT_LIBRARY_DIR})
-endforeach( OUTPUTCONFIG CMAKE_CONFIGURATION_TYPES )
+set(TARGET_NAME SirionRenderer)
 
-set(CURR_PROJECT_SOURCE_DIR "${SIRION_ROOT_DIR}/renderer/src")
-set(CURR_PROJECT_HEADER_DIR "${SIRION_ROOT_DIR}/renderer/include")
-include_directories("include")
+set(CURR_PROJECT_SOURCE_DIR "${SIRION_ROOT_DIR}/renderer")
 
-file(GLOB_RECURSE SOURCES
-    src/*.cpp
-)
-file(GLOB_RECURSE HEADERS
-    include/*.h
-)
+file(GLOB_RECURSE SOURCES "*.cpp")
+file(GLOB_RECURSE HEADERS "*.h")
 
-add_library(SirionRenderer ${SOURCES} ${HEADERS})
-add_dependencies(SirionRenderer glfw)
-
-# Build 3rd-party tools
-file(GLOB GLFW_LIBRARY ${PROJECT_LIBRARY_DIR}/glfw/glfw3.lib)
-
-target_link_libraries(SirionRenderer ${GLFW_LIBRARY})
-
-source_group(TREE ${CURR_PROJECT_SOURCE_DIR} FILES ${SOURCES})
-source_group(TREE ${CURR_PROJECT_HEADER_DIR} FILES ${HEADERS})
+include_directories("${VULKAN_PATH}/Include/vulkan")
+include_directories("${VULKAN_PATH}/Include/vk_video")
+include_directories("${SIRION_EXTERNAL_DIR}/glfw/include")
+include_directories("${SIRION_EXTERNAL_DIR}/json11")
+include_directories("${SIRION_EXTERNAL_DIR}/eigen")
+include_directories("${SIRION_EXTERNAL_DIR}/imgui")
+include_directories("${SIRION_EXTERNAL_DIR}/glm")
+include_directories("${SIRION_EXTERNAL_DIR}/tinyobjectloader")
+include_directories("${SIRION_EXTERNAL_DIR}/stb")
+source_group(TREE ${CURR_PROJECT_SOURCE_DIR} FILES ${SOURCES} ${HEADERS})
+add_library(${TARGET_NAME} ${SOURCES} ${HEADERS})
+target_link_libraries(${TARGET_NAME} glfw ${Vulkan_LIBRARY} json11)
+add_dependencies(${TARGET_NAME} SirionPrimitives SirionParticles)
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
-  set_property(TARGET SirionRenderer PROPERTY CXX_STANDARD 20)
+  set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD 20)
 endif()

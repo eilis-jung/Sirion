@@ -13,3 +13,9 @@
 [submodule "source/external/imgui"]
 	path = source/external/imgui
 	url = https://github.com/ocornut/imgui.git
+[submodule "source/external/tinyobjectloader"]
+	path = source/external/tinyobjectloader
+	url = https://github.com/tinyobjloader/tinyobjloader.git
+[submodule "source/external/stb"]
+	path = source/external/stb
+	url = https://github.com/nothings/stb.git

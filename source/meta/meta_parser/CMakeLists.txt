@@ -3,8 +3,6 @@ set(TARGET_NAME SirionParser)
 
 #set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../CMake")
 
-set_property(GLOBAL PROPERTY USE_FOLDERS ON)
-
 file(GLOB_RECURSE HEADERS "*.h")
 file(GLOB_RECURSE SOURCES "*.cpp")
 
@@ -18,8 +16,6 @@ include_directories(${LLVM_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR}/parser)
 # header files are superflous, but some IDEs (Visual Studio) don't include
 # them in the solution explorer without them being added to the list of sources
 add_executable(${TARGET_NAME} ${HEADERS} ${SOURCES})
-
-#set_target_properties(meta_parser PROPERTIES FOLDER "generator" ) 
 
 set_target_properties(${TARGET_NAME} PROPERTIES CXX_STANDARD 17)
 set_target_properties(${TARGET_NAME} PROPERTIES FOLDER "Tools")

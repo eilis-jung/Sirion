@@ -1,10 +1,8 @@
-# 
 set(PRECOMPILE_TOOLS_PATH "${PROJECT_BINARY_DIR}")
 set(PRECOMPILE_PARAMS_IN_PATH "${CMAKE_CURRENT_SOURCE_DIR}/precompile.json.in")
 set(PRECOMPILE_PARAMS_PATH "${PRECOMPILE_TOOLS_PATH}/precompile.json")
 configure_file(${PRECOMPILE_PARAMS_IN_PATH} ${PRECOMPILE_PARAMS_PATH})
 
-#
 # use wine for linux
 if (CMAKE_HOST_WIN32)
     set(PRECOMPILE_PRE_EXE)
@@ -21,13 +19,8 @@ set (PARSER_INPUT ${CMAKE_BINARY_DIR}/parser_header.h)
 set (TEMPLATE_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/meta_parser)
 ### BUILDING ====================================================================================
 set(PRECOMPILE_TARGET "SirionPrecompile")
-message(${PRECOMPILE_PARSER} "${PRECOMPILE_PARAMS_PATH}"  "${PARSER_INPUT}"  "${SIRION_ROOT_DIR}" "${TEMPLATE_ROOT_DIR}" ${sys_include} "Sirion" 0
-)
 # Called first time when building target 
 add_custom_target(${PRECOMPILE_TARGET} ALL
-# COMMAND # (DEBUG: DON'T USE )
-#     this will make configure_file() is called on each compile
-#   ${CMAKE_COMMAND} -E touch ${PRECOMPILE_PARAM_IN_PATH}a
 
 # If more than one COMMAND is specified they will be executed in order...
 COMMAND
