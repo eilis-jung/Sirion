@@ -15,17 +15,16 @@ set(CURR_PROJECT_SOURCE_DIR "${SIRION_ROOT_DIR}/main")
 # file(GLOB_RECURSE GENERATED "${CURR_PROJECT_SOURCE_DIR}/meta_parser/parser/*.cpp" "${CURR_PROJECT_SOURCE_DIR}/meta_parser/parser/*.h")
 file(GLOB_RECURSE SOURCES "*.cpp")
 file(GLOB_RECURSE HEADERS "*.h")
-# file(GLOB_RECURSE HEADERS "*.h")
 
 # Build 3rd-party tools
 file(GLOB GLFW_LIBRARY ${PROJECT_LIBRARY_DIR}/glfw/glfw3.lib)
-file(GLOB JSON_LIBRARY ${PROJECT_LIBRARY_DIR}/json11.lib)
+
 
 source_group(TREE ${CURR_PROJECT_SOURCE_DIR} FILES ${SOURCES} ${HEADERS})
 
 add_executable(SirionMain ${SOURCES} ${HEADERS})
 add_dependencies(SirionMain glfw json11 SirionShader)
-target_link_libraries(SirionMain ${GLFW_LIBRARY} ${Vulkan_LIBRARY} ${JSON_LIBRARY})
+target_link_libraries(SirionMain glfw ${Vulkan_LIBRARY} json11)
 target_include_directories(
   SirionMain
   PUBLIC $<BUILD_INTERFACE:${SIRION_ROOT_DIR}>)
