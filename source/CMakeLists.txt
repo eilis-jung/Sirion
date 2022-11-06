@@ -38,7 +38,7 @@ include_directories("${SIRION_EXTERNAL_DIR}/imgui")
 # Sub-projects
 add_subdirectory ("external")
 add_subdirectory ("shader")
-add_subdirectory ("primitives")
+add_subdirectory ("math")
 add_subdirectory ("particles")
 add_subdirectory ("physics")
 add_subdirectory ("renderer")

@@ -9,6 +9,7 @@ file(GLOB_RECURSE HEADERS "*.h")
 
 include_directories("${SIRION_EXTERNAL_DIR}/eigen")
 include_directories("${SIRION_EXTERNAL_DIR}/glm")
+include_directories("${SIRION_ROOT_DIR}")
 source_group(TREE ${CURR_PROJECT_SOURCE_DIR} FILES ${SOURCES} ${HEADERS})
 add_library(${TARGET_NAME} ${SOURCES} ${HEADERS})
 # target_link_libraries(${TARGET_NAME} glfw ${Vulkan_LIBRARY} json11)

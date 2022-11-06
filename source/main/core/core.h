@@ -1,20 +1,17 @@
 #pragma once
 
 #include <memory>
-#include <Eigen/Core>
+#include <iostream>
+#include <stdexcept>
+#include <cstdlib>
+#include <vector>
+#include <memory>
+#include <map>
+#pragma once
+
+#include "manager.h"
+
 
 
 namespace Sirion {
-
-	class SirionConfig {
-	public:
-		SirionConfig(std::string & configFile) {
-
-		}
-		~SirionConfig() {
-
-		}
-	private:
-
-	};
 }

@@ -12,13 +12,17 @@ file(GLOB GLFW_LIBRARY ${PROJECT_LIBRARY_DIR}/glfw/glfw3.lib)
 
 source_group(TREE ${CURR_PROJECT_SOURCE_DIR} FILES ${SOURCES} ${HEADERS})
 
+include_directories("${VULKAN_PATH}/Include")
+include_directories("${SIRION_EXTERNAL_DIR}/glm")
+# include_directories("${SIRION_EXTERNAL_DIR}/stb")
+include_directories("${SIRION_ROOT_DIR}")
 add_executable(${TARGET_NAME} ${SOURCES} ${HEADERS})
 add_dependencies(${TARGET_NAME} glfw json11 )
-add_dependencies(${TARGET_NAME} SirionPrecompile SirionShader SirionRenderer)
-target_link_libraries(${TARGET_NAME} glfw ${Vulkan_LIBRARY} json11)
-target_include_directories(
-  ${TARGET_NAME}
-  PUBLIC $<BUILD_INTERFACE:${SIRION_ROOT_DIR}>)
+add_dependencies(${TARGET_NAME} SirionPrecompile SirionMath)
+target_link_libraries(${TARGET_NAME} glfw ${Vulkan_LIBRARY} json11 SirionMath)
+# target_include_directories(
+#   ${TARGET_NAME}
+#   PUBLIC $<BUILD_INTERFACE:${SIRION_ROOT_DIR}>)
 
 # set global var used by precompile
 set(SIRION_MAIN_HEADERS "${HEADERS}" PARENT_SCOPE)

@@ -9,7 +9,9 @@ set(BUILD_SHARED_LIBS OFF)
 include(CMakeDependentOption)
 
 # Vulkan
-set(VULKAN_PATH "C:/VulkanSDK/1.3.216.0")
+set(VULKAN_PATH "C:/VulkanSDK/1.3.231.1")
+# set(VULKAN_PATH "C:/Users/appce/source/repos/Sirion/source/external/VulkanSDK")
+
 
 # Include sub-projects.
 add_subdirectory ("source")

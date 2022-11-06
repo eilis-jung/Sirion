@@ -1,4 +1,3 @@
 #pragma once
 
-#include "renderer/primitives/point_renderer.h"
-#include "renderer/primitives/sphere_renderer.h"
+#include "application/point_render_application.h"
