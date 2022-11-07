@@ -1,6 +1,7 @@
 #pragma once
 
 #define GLFW_INCLUDE_VULKAN
+#include <vulkan/vulkan.hpp>
 #include <GLFW/glfw3.h>
 #include <chrono>
 #include <optional>
@@ -315,6 +316,7 @@ namespace Sirion {
         void createDescriptorPool();
         void createDescriptorSets();
         void createCommandBuffers();
+        void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
         void createSyncObjects();
 
         void cleanupSwapChain();

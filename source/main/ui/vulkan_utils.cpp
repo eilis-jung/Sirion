@@ -592,6 +592,7 @@ void Sirion::VkInstanceWrapper::setupGraphicsPipeline() {
     viewportState.pViewports    = &viewport;
     viewportState.viewportCount = 1;
     viewportState.scissorCount  = 1;
+    viewportState.pScissors     = &scissor;
 
     VkPipelineRasterizationStateCreateInfo rasterizer {};
     rasterizer.sType                   = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
@@ -1031,36 +1032,13 @@ void Sirion::VkInstanceWrapper::createBuffer(VkDeviceSize          size,
 }
 
 void Sirion::VkInstanceWrapper::copyBuffer(VkBuffer& srcBuffer, VkBuffer& dstBuffer, const VkDeviceSize& size) {
-    VkCommandBufferAllocateInfo allocInfo {};
-    allocInfo.sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.level              = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocInfo.commandPool        = m_commandPool;
-    allocInfo.commandBufferCount = 1;
-
-    VkCommandBuffer commandBuffer;
-    vkAllocateCommandBuffers(m_logicalDevice, &allocInfo, &commandBuffer);
-
-    VkCommandBufferBeginInfo beginInfo {};
-    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+    VkCommandBuffer commandBuffer = beginSingleTimeCommands();
 
     VkBufferCopy copyRegion {};
     copyRegion.size = size;
     vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
 
-    vkEndCommandBuffer(commandBuffer);
-
-    VkSubmitInfo submitInfo {};
-    submitInfo.sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers    = &commandBuffer;
-
-    vkQueueSubmit(m_graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-    vkQueueWaitIdle(m_graphicsQueue);
-
-    vkFreeCommandBuffers(m_logicalDevice, m_commandPool, 1, &commandBuffer);
+    endSingleTimeCommands(commandBuffer);
 }
 
 void Sirion::VkInstanceWrapper::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) {
@@ -1522,7 +1500,6 @@ void Sirion::VkInstanceWrapper::createUniformBuffers() {
     #pragma region move
     m_uniformBuffers.resize(m_swapChainImages.size());
     m_uniformBuffersMemory.resize(m_swapChainImages.size());
-    m_uniformBuffersMapped.resize(m_swapChainImages.size());
 
     for (size_t i = 0; i < m_swapChainImages.size(); i++)
     {
@@ -1531,8 +1508,6 @@ void Sirion::VkInstanceWrapper::createUniformBuffers() {
                      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
                      m_uniformBuffers[i],
                      m_uniformBuffersMemory[i]);
-
-        vkMapMemory(m_logicalDevice, m_uniformBuffersMemory[i], 0, bufferSize, 0, &m_uniformBuffersMapped[i]);
     }
     #pragma endregion
 }
@@ -1554,7 +1529,9 @@ void Sirion::VkInstanceWrapper::updateUniformBuffer(uint32_t currentImage) {
     ubo.proj[1][1] *= -1;
 
     void* data;
-    vkMapMemory(m_logicalDevice, m_uniformBuffersMemory[currentImage], 0, sizeof(ubo), 0, &data);
+    //auto  aa = vk::Device(m_logicalDevice);
+    //void* data = aa->mapMemory(m_uniformBuffersMemory[currentImage], 0, sizeof(ubo));
+    vkMapMemory(m_logicalDevice, m_uniformBuffersMemory[currentImage], 0, sizeof(ubo), VkMemoryMapFlags(), &data);
 
     memcpy(data, &ubo, sizeof(ubo));
 
@@ -1649,14 +1626,14 @@ void Sirion::VkInstanceWrapper::createCommandBuffers() {
     {
         throw std::runtime_error("failed to allocate command buffers!");
     }
+}
 
-    for (size_t i = 0; i < m_commandBuffers.size(); i++)
-    {
+void Sirion::VkInstanceWrapper::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t i) {
         VkCommandBufferBeginInfo beginInfo = {};
         beginInfo.sType                    = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         beginInfo.flags                    = VkCommandBufferUsageFlagBits::VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
 
-        if (vkBeginCommandBuffer(m_commandBuffers[i], &beginInfo) != VK_SUCCESS)
+        if (vkBeginCommandBuffer(commandBuffer, &beginInfo) != VK_SUCCESS)
         {
             throw std::runtime_error("failed to begin recording command buffer!");
         }
@@ -1675,30 +1652,37 @@ void Sirion::VkInstanceWrapper::createCommandBuffers() {
         renderPassInfo.pClearValues    = clearValues.data();
 
         // Bind the compute pipeline
-        vkCmdBindPipeline(m_commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipelineResetCellVertex);
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipelineResetCellVertex);
 
         // Bind descriptor sets for compute
-        vkCmdBindDescriptorSets(m_commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipelineLayout, 0, 1,
-         m_computeDescriptorSets.data(), 0, nullptr);
+        vkCmdBindDescriptorSets(commandBuffer,
+                                VK_PIPELINE_BIND_POINT_COMPUTE,
+                                m_computePipelineLayout,
+                                0,
+                                1,
+                                m_computeDescriptorSets.data(),
+                                0,
+                                nullptr);
 
         // Dispatch the compute kernel, with one thread for each vertex
-        vkCmdDispatch(m_commandBuffers[i], m_num_grid_cells, 1, 1);
+        vkCmdDispatch(commandBuffer, m_num_grid_cells, 1, 1);
 
+        QueueFamilyIndices    queueFamilyIndices      = findQueueFamilies(m_physicalDevice);
         VkBufferMemoryBarrier computeToComputeBarrier = {};
         computeToComputeBarrier.sType                 = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
         computeToComputeBarrier.srcAccessMask =
-             VkAccessFlagBits::VK_ACCESS_SHADER_WRITE_BIT | VkAccessFlagBits::VK_ACCESS_SHADER_READ_BIT;
+            VkAccessFlagBits::VK_ACCESS_SHADER_WRITE_BIT | VkAccessFlagBits::VK_ACCESS_SHADER_READ_BIT;
         computeToComputeBarrier.dstAccessMask =
-             VkAccessFlagBits::VK_ACCESS_SHADER_WRITE_BIT | VkAccessFlagBits::VK_ACCESS_SHADER_READ_BIT;
-        computeToComputeBarrier.srcQueueFamilyIndex   = queueFamilyIndices.computeFamily.value();
-        computeToComputeBarrier.dstQueueFamilyIndex   = queueFamilyIndices.computeFamily.value();
-        computeToComputeBarrier.buffer                = m_cellVertCountBuffer;
-        computeToComputeBarrier.offset                = 0;
-        computeToComputeBarrier.size                  = m_num_grid_cells * sizeof(int);
+            VkAccessFlagBits::VK_ACCESS_SHADER_WRITE_BIT | VkAccessFlagBits::VK_ACCESS_SHADER_READ_BIT;
+        computeToComputeBarrier.srcQueueFamilyIndex = queueFamilyIndices.computeFamily.value();
+        computeToComputeBarrier.dstQueueFamilyIndex = queueFamilyIndices.computeFamily.value();
+        computeToComputeBarrier.buffer              = m_cellVertCountBuffer;
+        computeToComputeBarrier.offset              = 0;
+        computeToComputeBarrier.size                = m_num_grid_cells * sizeof(int);
 
         VkPipelineStageFlags computeShaderStageFlags_1(VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
         VkPipelineStageFlags computeShaderStageFlags_2(VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-        vkCmdPipelineBarrier(m_commandBuffers[i],
+        vkCmdPipelineBarrier(commandBuffer,
                              computeShaderStageFlags_1,
                              computeShaderStageFlags_2,
                              VkDependencyFlags(),
@@ -1710,32 +1694,36 @@ void Sirion::VkInstanceWrapper::createCommandBuffers() {
                              nullptr);
 
         // Bind the compute pipeline
-        vkCmdBindPipeline(m_commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipelineFillCellVertex);
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipelineFillCellVertex);
 
         // Bind descriptor sets for compute
-         vkCmdBindDescriptorSets(m_commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipelineLayout, 0, 1,
+        vkCmdBindDescriptorSets(commandBuffer,
+                                VK_PIPELINE_BIND_POINT_COMPUTE,
+                                m_computePipelineLayout,
+                                0,
+                                1,
                                 m_computeDescriptorSets.data(),
                                 0,
                                 nullptr);
 
         // Dispatch the compute kernel, with one thread for each vertex
-         vkCmdDispatch(m_commandBuffers[i], uint32_t(m_raw_verts.size()), 1, 1);
+        vkCmdDispatch(commandBuffer, uint32_t(m_raw_verts.size()), 1, 1);
 
         VkBufferMemoryBarrier computeToComputeBarrier1 = {};
         computeToComputeBarrier1.sType                 = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
         computeToComputeBarrier1.srcAccessMask =
-             VkAccessFlagBits::VK_ACCESS_SHADER_WRITE_BIT | VkAccessFlagBits::VK_ACCESS_SHADER_READ_BIT;
+            VkAccessFlagBits::VK_ACCESS_SHADER_WRITE_BIT | VkAccessFlagBits::VK_ACCESS_SHADER_READ_BIT;
         computeToComputeBarrier1.dstAccessMask =
             VkAccessFlagBits::VK_ACCESS_SHADER_WRITE_BIT | VkAccessFlagBits::VK_ACCESS_SHADER_READ_BIT;
-        computeToComputeBarrier1.srcQueueFamilyIndex   = queueFamilyIndices.computeFamily.value();
-        computeToComputeBarrier1.dstQueueFamilyIndex   = queueFamilyIndices.computeFamily.value();
-        computeToComputeBarrier1.buffer                = m_cellVertCountBuffer;
-        computeToComputeBarrier1.offset                = 0;
-        computeToComputeBarrier1.size                  = m_num_grid_cells * sizeof(int); // vertexBufferSize
+        computeToComputeBarrier1.srcQueueFamilyIndex = queueFamilyIndices.computeFamily.value();
+        computeToComputeBarrier1.dstQueueFamilyIndex = queueFamilyIndices.computeFamily.value();
+        computeToComputeBarrier1.buffer              = m_cellVertCountBuffer;
+        computeToComputeBarrier1.offset              = 0;
+        computeToComputeBarrier1.size                = m_num_grid_cells * sizeof(int); // vertexBufferSize
 
         VkPipelineStageFlags computeShaderStageFlags_3(VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
         VkPipelineStageFlags computeShaderStageFlags_4(VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
-        vkCmdPipelineBarrier(m_commandBuffers[i],
+        vkCmdPipelineBarrier(commandBuffer,
                              computeShaderStageFlags_3,
                              computeShaderStageFlags_4,
                              VkDependencyFlags(),
@@ -1747,16 +1735,20 @@ void Sirion::VkInstanceWrapper::createCommandBuffers() {
                              nullptr);
 
         // Bind the compute pipeline
-        vkCmdBindPipeline(m_commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipelinePhysics);
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipelinePhysics);
 
         // Bind descriptor sets for compute
-        vkCmdBindDescriptorSets(m_commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipelineLayout, 0, 1,
+        vkCmdBindDescriptorSets(commandBuffer,
+                                VK_PIPELINE_BIND_POINT_COMPUTE,
+                                m_computePipelineLayout,
+                                0,
+                                1,
                                 m_computeDescriptorSets.data(),
                                 0,
                                 nullptr);
 
         // Dispatch the compute kernel, with one thread for each vertex
-        vkCmdDispatch(m_commandBuffers[i], uint32_t(m_raw_verts.size()), 1, 1);
+        vkCmdDispatch(commandBuffer, uint32_t(m_raw_verts.size()), 1, 1);
 
         VkBufferMemoryBarrier computeToComputeBarrier2 = {};
         computeToComputeBarrier2.sType                 = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
@@ -1764,16 +1756,16 @@ void Sirion::VkInstanceWrapper::createCommandBuffers() {
             VkAccessFlagBits::VK_ACCESS_SHADER_WRITE_BIT | VkAccessFlagBits::VK_ACCESS_SHADER_READ_BIT;
         computeToComputeBarrier2.dstAccessMask =
             VkAccessFlagBits::VK_ACCESS_SHADER_WRITE_BIT | VkAccessFlagBits::VK_ACCESS_SHADER_READ_BIT;
-        computeToComputeBarrier2.srcQueueFamilyIndex   = queueFamilyIndices.computeFamily.value();
-        computeToComputeBarrier2.dstQueueFamilyIndex   = queueFamilyIndices.computeFamily.value();
-        computeToComputeBarrier2.buffer                = m_vertexBuffer2;
-        computeToComputeBarrier2.offset                = 0;
+        computeToComputeBarrier2.srcQueueFamilyIndex = queueFamilyIndices.computeFamily.value();
+        computeToComputeBarrier2.dstQueueFamilyIndex = queueFamilyIndices.computeFamily.value();
+        computeToComputeBarrier2.buffer              = m_vertexBuffer2;
+        computeToComputeBarrier2.offset              = 0;
         computeToComputeBarrier2.size = uint32_t(m_raw_verts.size()) * sizeof(Vertex); // vertexBufferSize
 
         VkPipelineStageFlags computeShaderStageFlags_5(VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
         VkPipelineStageFlags computeShaderStageFlags_6(VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
 
-        vkCmdPipelineBarrier(m_commandBuffers[i],
+        vkCmdPipelineBarrier(commandBuffer,
                              computeShaderStageFlags_5,
                              computeShaderStageFlags_6,
                              VkDependencyFlags(),
@@ -1785,10 +1777,10 @@ void Sirion::VkInstanceWrapper::createCommandBuffers() {
                              nullptr);
 
         // Bind the compute pipeline
-        vkCmdBindPipeline(m_commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipelineSphereVertex);
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipelineSphereVertex);
 
         // Bind descriptor sets for compute
-        vkCmdBindDescriptorSets(m_commandBuffers[i],
+        vkCmdBindDescriptorSets(commandBuffer,
                                 VK_PIPELINE_BIND_POINT_COMPUTE,
                                 m_computePipelineLayout,
                                 0,
@@ -1798,25 +1790,24 @@ void Sirion::VkInstanceWrapper::createCommandBuffers() {
                                 nullptr);
 
         // Dispatch the compute kernel, with one thread for each vertex
-        vkCmdDispatch(m_commandBuffers[i], uint32_t(m_sphere_verts.size()), 1, 1);
-
+        vkCmdDispatch(commandBuffer, uint32_t(m_sphere_verts.size()), 1, 1);
 
         // Define a memory barrier to transition the vertex buffer from a compute storage object to a vertex input
         VkBufferMemoryBarrier computeToVertexBarrier = {};
         computeToVertexBarrier.sType                 = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
         computeToVertexBarrier.srcAccessMask =
             VkAccessFlagBits::VK_ACCESS_SHADER_WRITE_BIT | VkAccessFlagBits::VK_ACCESS_SHADER_READ_BIT;
-        computeToVertexBarrier.dstAccessMask         = VkAccessFlagBits::VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
-        computeToVertexBarrier.srcQueueFamilyIndex   = queueFamilyIndices.computeFamily.value();
-        computeToVertexBarrier.dstQueueFamilyIndex   = queueFamilyIndices.graphicsFamily.value();
-        computeToVertexBarrier.buffer                = m_sphereVertsBuffer;
-        computeToVertexBarrier.offset                = 0;
+        computeToVertexBarrier.dstAccessMask       = VkAccessFlagBits::VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
+        computeToVertexBarrier.srcQueueFamilyIndex = queueFamilyIndices.computeFamily.value();
+        computeToVertexBarrier.dstQueueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
+        computeToVertexBarrier.buffer              = m_sphereVertsBuffer;
+        computeToVertexBarrier.offset              = 0;
         computeToVertexBarrier.size = uint32_t(m_sphere_verts.size()) * sizeof(Vertex); // vertexBufferSize
 
         VkPipelineStageFlags computeShaderStageFlags(VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
         VkPipelineStageFlags vertexShaderStageFlags(VkPipelineStageFlagBits::VK_PIPELINE_STAGE_VERTEX_INPUT_BIT);
 
-        vkCmdPipelineBarrier(m_commandBuffers[i],
+        vkCmdPipelineBarrier(commandBuffer,
                              computeShaderStageFlags,
                              vertexShaderStageFlags,
                              VkDependencyFlags(),
@@ -1827,43 +1818,48 @@ void Sirion::VkInstanceWrapper::createCommandBuffers() {
                              0,
                              nullptr);
 
-        vkCmdBeginRenderPass(m_commandBuffers[i], &renderPassInfo, VkSubpassContents::VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VkSubpassContents::VK_SUBPASS_CONTENTS_INLINE);
 
-        vkCmdBindPipeline(m_commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
 
-        VkViewport viewport {};
-        viewport.x        = 0.0f;
-        viewport.y        = 0.0f;
-        viewport.width    = (float)m_swapChainExtent.width;
-        viewport.height   = (float)m_swapChainExtent.height;
-        viewport.minDepth = 0.0f;
-        viewport.maxDepth = 1.0f;
-        vkCmdSetViewport(m_commandBuffers[i], 0, 1, &viewport);
+        // VkViewport viewport {};
+        // viewport.x        = 0.0f;
+        // viewport.y        = 0.0f;
+        // viewport.width    = (float)m_swapChainExtent.width;
+        // viewport.height   = (float)m_swapChainExtent.height;
+        // viewport.minDepth = 0.0f;
+        // viewport.maxDepth = 1.0f;
+        // vkCmdSetViewport(m_commandBuffers[i], 0, 1, &viewport);
 
-        VkRect2D scissor {};
-        scissor.offset = {0, 0};
-        scissor.extent = m_swapChainExtent;
-        vkCmdSetScissor(m_commandBuffers[i], 0, 1, &scissor);
+        // VkRect2D scissor {};
+        // scissor.offset = {0, 0};
+        // scissor.extent = m_swapChainExtent;
+        // vkCmdSetScissor(m_commandBuffers[i], 0, 1, &scissor);
 
         VkBuffer     vertexBuffers[] = {m_sphereVertsBuffer};
         VkDeviceSize offsets[]       = {0};
-        vkCmdBindVertexBuffers(m_commandBuffers[i], 0, 1, vertexBuffers, offsets);
+        vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
 
-        vkCmdBindIndexBuffer(m_commandBuffers[i], m_indexBuffer, 0, VkIndexType::VK_INDEX_TYPE_UINT32);
+        vkCmdBindIndexBuffer(commandBuffer, m_indexBuffer, 0, VkIndexType::VK_INDEX_TYPE_UINT32);
 
-        vkCmdBindDescriptorSets(
-            m_commandBuffers[i], VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS, m_pipelineLayout, 0, 1, &m_descriptorSets[i], 0, nullptr);
+        vkCmdBindDescriptorSets(commandBuffer,
+                                VkPipelineBindPoint::VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                m_pipelineLayout,
+                                0,
+                                1,
+                                &m_descriptorSets[i],
+                                0,
+                                nullptr);
 
-        vkCmdDrawIndexed(m_commandBuffers[i], static_cast<uint32_t>(uint32_t(m_sphere_indices.size())), 1, 0, 0, 0);
+        vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(uint32_t(m_sphere_indices.size())), 1, 0, 0, 0);
 
-        vkCmdEndRenderPass(m_commandBuffers[i]);
+        vkCmdEndRenderPass(commandBuffer);
 
-        if (vkEndCommandBuffer(m_commandBuffers[i]) != VK_SUCCESS)
+        if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS)
         {
             throw std::runtime_error("failed to record command buffer!");
         }
 
-    }
 
 }
 
@@ -2041,25 +2037,24 @@ void Sirion::VkInstanceWrapper::drawFrame(GLFWwindow* window)
                                         m_swapChain,
                                         std::numeric_limits<uint64_t>::max(),
                                         m_imageAvailableSemaphores[m_currentFrame],
-                                        nullptr,
+                                        VK_NULL_HANDLE,
                                         &imageIndex);
-    imageIndex  = (uint32_t)vr;
-    if (vr != VK_SUCCESS)
+    if (vr == VK_ERROR_OUT_OF_DATE_KHR)
     {
-        if (vr == VkResult::VK_ERROR_OUT_OF_DATE_KHR)
-        {
-            recreateSwapChain(window);
-            return;
-        }
-        else
-        {
-            throw std::runtime_error("failed to acquire swap chain image!");
-        }
+        recreateSwapChain(window);
+        return;
     }
+    else if (vr != VK_SUCCESS && vr != VK_SUBOPTIMAL_KHR)
+        throw std::runtime_error("failed to acquire swap chain image!");
 
     VkDeviceSize bufferSize = static_cast<uint32_t>(m_raw_verts.size() * sizeof(Vertex));
     copyBuffer(m_vertexBuffer2, m_vertexBuffer1, bufferSize);
     updateUniformBuffer(imageIndex);
+
+    vkResetCommandBuffer(m_commandBuffers[m_currentFrame], /*VkCommandBufferResetFlagBits*/ 0);
+    recordCommandBuffer(m_commandBuffers[m_currentFrame], imageIndex);
+
+
     VkSubmitInfo submitInfo = {};
     submitInfo.sType        = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
@@ -2166,60 +2161,6 @@ void Sirion::VkInstanceWrapper::cleanup()
     delete m_createInfo.pApplicationInfo;
     delete m_createInfo.ppEnabledLayerNames; // ppEnabledLayerNames is a pointer to heap
 }
-
-//Sirion::VkInstanceWrapper::~VkInstanceWrapper()
-//{
-//    // Swap chain has to be destroyed before surface
-//    cleanupSwapChain();
-//    vkDestroyPipeline(m_logicalDevice, m_computePipelinePhysics, nullptr);
-//    vkDestroyPipeline(m_logicalDevice, m_computePipelineFillCellVertex, nullptr);
-//    vkDestroyPipeline(m_logicalDevice, m_computePipelineResetCellVertex, nullptr);
-//    vkDestroyPipeline(m_logicalDevice, m_computePipelineSphereVertex, nullptr);
-//    vkDestroyPipelineLayout(m_logicalDevice, m_computePipelineLayout, nullptr);
-//    vkDestroyDescriptorPool(m_logicalDevice, m_computeDescriptorPool, nullptr);
-//    vkDestroyDescriptorSetLayout(m_logicalDevice, m_computeDescriptorSetLayout, nullptr);
-//
-//    // The main texture image is used till the end
-//    vkDestroySampler(m_logicalDevice, m_textureSampler, nullptr);
-//    vkDestroyImageView(m_logicalDevice, m_textureImageView, nullptr);
-//    vkDestroyImage(m_logicalDevice, m_textureImage, nullptr);
-//    vkFreeMemory(m_logicalDevice, m_textureImageMemory, nullptr);
-//
-//    vkDestroyBuffer(m_logicalDevice, m_numVertsBuffer, nullptr);
-//    vkFreeMemory(m_logicalDevice, m_numVertsBufferMemory, nullptr);
-//
-//    vkDestroyBuffer(m_logicalDevice, m_vertexBuffer1, nullptr);
-//    vkFreeMemory(m_logicalDevice, m_vertexBufferMemory1, nullptr);
-//
-//    vkDestroyBuffer(m_logicalDevice, m_vertexBuffer2, nullptr);
-//    vkFreeMemory(m_logicalDevice, m_vertexBufferMemory2, nullptr);
-//
-//    vkDestroyBuffer(m_logicalDevice, m_indexBuffer, nullptr);
-//    vkFreeMemory(m_logicalDevice, m_indexBufferMemory, nullptr);
-//
-//    vkDestroyBuffer(m_logicalDevice, m_cellVertArrayBuffer, nullptr);
-//    vkFreeMemory(m_logicalDevice, m_cellVertArrayBufferMemory, nullptr);
-//    vkDestroyBuffer(m_logicalDevice, m_cellVertCountBuffer, nullptr);
-//    vkFreeMemory(m_logicalDevice, m_cellVertCountBufferMemory, nullptr);
-//    vkDestroyBuffer(m_logicalDevice, m_sphereVertsBuffer, nullptr);
-//    vkFreeMemory(m_logicalDevice, m_sphereVertsBufferMemory, nullptr);
-//
-//    for (size_t i = 0; i < m_max_frames_in_flight; i++)
-//    {
-//        vkDestroySemaphore(m_logicalDevice, m_renderFinishedSemaphores[i], nullptr);
-//        vkDestroySemaphore(m_logicalDevice, m_imageAvailableSemaphores[i], nullptr);
-//        vkDestroyFence(m_logicalDevice, m_inFlightFences[i], nullptr);
-//    }
-//
-//    vkDestroyCommandPool(m_logicalDevice, m_commandPool, nullptr);
-//
-//    vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
-//    vkDestroyDevice(m_logicalDevice, nullptr);
-//    vkDestroyInstance(m_instance, nullptr);
-//
-//    delete m_createInfo.pApplicationInfo;
-//    delete m_createInfo.ppEnabledLayerNames; // ppEnabledLayerNames is a pointer to heap
-//}
 
 VkShaderModule Sirion::VkUtils::createShaderModule(VkDevice& device, const std::vector<unsigned char>& shader_code)
 {
