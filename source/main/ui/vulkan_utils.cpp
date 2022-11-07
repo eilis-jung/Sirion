@@ -5,30 +5,6 @@
 #include "tiny_obj_loader.h"
 #include "particles/particle_generator.h"
 
-#include <filesystem>
-#ifdef _WIN32
-#include <windows.h>
-#elif
-#include <unistd.h>
-#endif
-
-std::filesystem::path GetExeDirectory()
-{
-#ifdef _WIN32
-    // Windows specific
-    wchar_t szPath[MAX_PATH];
-    GetModuleFileNameW(NULL, szPath, MAX_PATH);
-#else
-    // Linux specific
-    char    szPath[PATH_MAX];
-    ssize_t count = readlink("/proc/self/exe", szPath, PATH_MAX);
-    if (count < 0 || count >= PATH_MAX)
-        return {}; // some error
-    szPath[count]               = '\0';
-#endif
-    return std::filesystem::path {szPath}.parent_path() / ""; // to finish the folder path with (back)slash
-}
-
 #include<iostream>
 
 Sirion::VkInstanceWrapper::VkInstanceWrapper() {}
@@ -1957,15 +1933,10 @@ Sirion::QueueFamilyIndices Sirion::VkInstanceWrapper::findQueueFamilies(VkPhysic
 
 
 void Sirion::VkInstanceWrapper::loadModel() {
-
-
-
-    auto                             bb = std::filesystem::path(m_sphere_path).root_directory().string();
         tinyobj::attrib_t                attrib;
         std::vector<tinyobj::shape_t>    shapes;
         std::vector<tinyobj::material_t> materials;
         std::string                      warn, err;
-        std::string                      executable_path(GetExeDirectory().string());
         if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, m_sphere_path.c_str()))
         {
             std::cerr << warn + err << std::endl;
@@ -1981,13 +1952,13 @@ void Sirion::VkInstanceWrapper::loadModel() {
             {
                 Vertex vertex {};
 
-                glm::vec3 pos = {attrib.vertices[3 * index.vertex_index + 0],
+                Vector3 pos = {attrib.vertices[3 * index.vertex_index + 0],
                                  attrib.vertices[3 * index.vertex_index + 1],
                                  attrib.vertices[3 * index.vertex_index + 2]};
 
-                vertex.position   = glm::vec4(pos, 1.f) * scale;
+                vertex.position   = Vector4(pos, 1.f) * scale;
                 vertex.position.w = 1.f;
-                vertex.color      = glm::vec4(glm::normalize(pos), 1.f);
+                vertex.color      = Vector4(glm::normalize(pos), 1.f);
 
                 m_model_verts.push_back(vertex);
                 m_model_indices.push_back(m_model_indices.size());

@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <unordered_map>
+#include <optional>
 
 #include "allocator.h"
 #include "component.h"
@@ -44,12 +45,13 @@ namespace Sirion
         { 
             m_component_allocator.allocGuid(component);
         }
-        bool getComponent(uint32_t component_id, Component & component) {
-            return m_component_allocator.getGuidRelatedElement(component_id, component);
+        bool getComponent(uint32_t component_id, Component & comp)
+        {
+            Component res;
+            m_component_allocator.getGuidRelatedElement(component_id, comp);
+            //return res.weak_from_this();
+            return true;
         }
-
-
-
     };
 
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <unordered_map>
+#include <optional>
 
 namespace Sirion
 {
@@ -10,7 +11,7 @@ namespace Sirion
     class SceneAllocator
     {
     public:
-        static bool isValidGuid(size_t guid) { return guid != s_invalid_guid; }
+        //static bool isValidGuid(size_t guid) { return guid != s_invalid_guid; }
 
         size_t allocGuid(const T& t)
         {
@@ -42,40 +43,41 @@ namespace Sirion
                 t = find_it->second;
                 return true;
             }
+            //return std::optional<T>::nullopt;
             return false;
         }
 
-        void freeGuid(size_t guid)
-        {
-            auto find_it = m_guid_elements_map.find(guid);
-            if (find_it != m_guid_elements_map.end())
-            {
-                const auto& ele = find_it->second;
-                m_elements_guid_map.erase(ele);
-                m_guid_elements_map.erase(guid);
-            }
-        }
+        //void freeGuid(size_t guid)
+        //{
+        //    auto find_it = m_guid_elements_map.find(guid);
+        //    if (find_it != m_guid_elements_map.end())
+        //    {
+        //        const auto& ele = find_it->second;
+        //        m_elements_guid_map.erase(ele);
+        //        m_guid_elements_map.erase(guid);
+        //    }
+        //}
 
-        void freeElement(const T& t)
-        {
-            auto find_it = m_elements_guid_map.find(t);
-            if (find_it != m_elements_guid_map.end())
-            {
-                const auto& guid = find_it->second;
-                m_elements_guid_map.erase(t);
-                m_guid_elements_map.erase(guid);
-            }
-        }
+        //void freeElement(const T& t)
+        //{
+        //    auto find_it = m_elements_guid_map.find(t);
+        //    if (find_it != m_elements_guid_map.end())
+        //    {
+        //        const auto& guid = find_it->second;
+        //        m_elements_guid_map.erase(t);
+        //        m_guid_elements_map.erase(guid);
+        //    }
+        //}
 
-        std::vector<size_t> getAllocatedGuids() const
-        {
-            std::vector<size_t> allocated_guids;
-            for (const auto& ele : m_guid_elements_map)
-            {
-                allocated_guids.push_back(ele.first);
-            }
-            return allocated_guids;
-        }
+        //std::vector<size_t> getAllocatedGuids() const
+        //{
+        //    std::vector<size_t> allocated_guids;
+        //    for (const auto& ele : m_guid_elements_map)
+        //    {
+        //        allocated_guids.push_back(ele.first);
+        //    }
+        //    return allocated_guids;
+        //}
 
         void clear()
         {
