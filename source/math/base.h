@@ -4,7 +4,7 @@
 #include <cmath>
 #include <limits>
 
-#include <vulkan/vulkan.hpp>
+//#include <vulkan/vulkan.hpp>
 #include <glm/glm.hpp>
 
 namespace Sirion

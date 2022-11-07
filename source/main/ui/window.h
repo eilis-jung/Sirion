@@ -4,7 +4,7 @@
 #include <GLFW/glfw3.h>
 #include <functional>
 #include "../application/application.h"
-//#include "../core/core.h"
+#include "../core/manager.h"
 
 namespace Sirion
 {
@@ -14,21 +14,25 @@ namespace Sirion
     class Window
     {
     public:
-        Window() :
-            m_width(WIN_INITIAL_WIDTH), m_height(WIN_INITIAL_HEIGHT), m_title(""), m_window(nullptr)
-        {}
+        Window() : m_width(WIN_INITIAL_WIDTH), m_height(WIN_INITIAL_HEIGHT), m_title(""), m_pGLFWWindow(nullptr)
+        {
+            init();
+            m_app.init(m_pGLFWWindow);
+            SceneManager::getInstance().addComponent(m_app);
+            m_app.run();
+        }
         bool        init();
-        GLFWwindow* getPointer() { return m_window; }
+        GLFWwindow* getPointer() { return m_pGLFWWindow; }
         ~Window();
 
     private:
-        GLFWwindow * m_window;
+        GLFWwindow * m_pGLFWWindow;
         uint32_t    m_width;
         uint32_t    m_height;
-        const char * m_title;
+        std::string m_title;
+        Application m_app;
 
-        static void  mouseDownCallback(GLFWwindow* window, int button, int action, int mods);
+        static void mouseDownCallback(GLFWwindow* window, int button, int action, int mods);
         static void mouseMoveCallback(GLFWwindow* window, double pos_x, double pos_y);
-
     };
 } // namespace Sirion

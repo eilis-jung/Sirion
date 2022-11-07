@@ -1,7 +1,6 @@
 #pragma once
 
 #define GLFW_INCLUDE_VULKAN
-#define STB_IMAGE_IMPLEMENTATION
 #include <GLFW/glfw3.h>
 #include <chrono>
 #include <optional>
@@ -14,10 +13,6 @@
 #include <limits>
 #include <algorithm>
 
-
-
-//#include "window.h"
-#include "stb_image.h"
 #include "math/math.h"
 
 #include "shader/generated/include/shader_vert.h"
@@ -41,6 +36,47 @@ namespace Sirion {
         std::vector<VkSurfaceFormatKHR> formats;
         std::vector<VkPresentModeKHR>   presentModes;
     };
+
+    static VkVertexInputBindingDescription getBindingDescription()
+    {
+        VkVertexInputBindingDescription bindingDescription {};
+        bindingDescription.binding   = 0;
+        bindingDescription.stride    = sizeof(Vertex);
+        bindingDescription.inputRate = VkVertexInputRate::VK_VERTEX_INPUT_RATE_VERTEX;
+        return bindingDescription;
+    }
+
+    static std::array<VkVertexInputAttributeDescription, 5> getAttributeDescriptions()
+    {
+        std::array<VkVertexInputAttributeDescription, 5> attributeDescriptions {};
+
+        attributeDescriptions[0].binding  = 0;
+        attributeDescriptions[0].location = 0;
+        attributeDescriptions[0].format   = VkFormat::VK_FORMAT_R32G32B32_SFLOAT;
+        attributeDescriptions[0].offset   = offsetof(Vertex, position);
+
+        attributeDescriptions[1].binding  = 0;
+        attributeDescriptions[1].location = 1;
+        attributeDescriptions[1].format   = VkFormat::VK_FORMAT_R32G32B32_SFLOAT;
+        attributeDescriptions[1].offset   = offsetof(Vertex, velocity);
+
+        attributeDescriptions[2].binding  = 0;
+        attributeDescriptions[2].location = 2;
+        attributeDescriptions[2].format   = VkFormat::VK_FORMAT_R32G32B32_SFLOAT;
+        attributeDescriptions[2].offset   = offsetof(Vertex, attr1);
+
+        attributeDescriptions[3].binding  = 0;
+        attributeDescriptions[3].location = 3;
+        attributeDescriptions[3].format   = VkFormat::VK_FORMAT_R32G32B32_SFLOAT;
+        attributeDescriptions[3].offset   = offsetof(Vertex, attr2);
+
+        attributeDescriptions[4].binding  = 0;
+        attributeDescriptions[4].location = 4;
+        attributeDescriptions[4].format   = VkFormat::VK_FORMAT_R32G32B32_SFLOAT;
+        attributeDescriptions[4].offset   = offsetof(Vertex, color);
+
+        return attributeDescriptions;
+    }
 
 	const std::vector<const char*> validationLayers = {"VK_LAYER_KHRONOS_validation"};
 
@@ -68,9 +104,9 @@ namespace Sirion {
 	private:
 #pragma region move
         VkClearColorValue     m_clear_color  = {0.f, 0.f, 0.f, 1.f};
-        std::string           m_texture_path = "../assets/images/viking_room.png";
-        std::string           m_sphere_path  = "../assets/models/sphere.obj";
-        std::string           m_model_path   = "../assets/models/viking_room.obj";
+        std::string           m_texture_path = "../../../asset/images/viking_room.png";
+        std::string           m_sphere_path  = "../../../asset/models/sphere.obj";
+        std::string           m_model_path   = "../../../asset/models/viking_room.obj";
         std::vector<Vertex>   m_raw_verts;
         std::vector<uint32_t> m_raw_indices;
         std::vector<Vertex>   m_sphere_verts;
@@ -141,12 +177,13 @@ namespace Sirion {
         VkPipeline                   m_computePipelineSphereVertex;
         VkDescriptorSetLayout        m_computeDescriptorSetLayout;
         VkDescriptorPool             m_computeDescriptorPool;
-        std::vector<VkDescriptorSet> m_computeDescriptorSet;
+        std::vector<VkDescriptorSet> m_computeDescriptorSets;
 
         bool m_framebufferResized = false;
 
 #pragma endregion
-		VkInstance m_instance;
+#pragma region members
+        VkInstance m_instance;
 		VkInstanceCreateInfo m_createInfo{};
 		VkPhysicalDevice m_physicalDevice = VK_NULL_HANDLE;
 		VkDevice m_logicalDevice;
@@ -179,7 +216,7 @@ namespace Sirion {
 		VkCommandPool   m_commandPool;
         VkCommandBuffer m_commandBuffer;
         std::vector<VkFramebuffer> m_swapChainFramebuffers;
-
+#pragma endregion
 
 		// AppInfo setup
 		VkApplicationInfo* initAppInfo();
@@ -218,6 +255,7 @@ namespace Sirion {
 
 		// Pipeline setup
         void setupRenderPass();
+        void createDescriptorSetLayout();
         void setupGraphicsPipeline();
 		void setupFixedFunctions();
 
@@ -246,7 +284,6 @@ namespace Sirion {
         void setupTextureImageView();
         void setupTextureSampler();
 
-        // loadModel;
         void createBuffer(VkDeviceSize          size,
                           VkBufferUsageFlags    usage,
                           VkMemoryPropertyFlags properties,
@@ -286,9 +323,11 @@ namespace Sirion {
 		VkInstanceWrapper();
 
         void init(GLFWwindow * window);
+        void loadModel();
+        void initParticles();
         void idle();
         void drawFrame(GLFWwindow * window);
-		~VkInstanceWrapper();
+        void cleanup();
 
 #ifdef NDEBUG
         const bool enableValidationLayers = false;

@@ -1,7 +1,5 @@
 #include "window.h"
-
-
-
+#include "../application/application.h"
 bool Sirion::Window::init()
 {
     glfwInit();
@@ -9,20 +7,21 @@ bool Sirion::Window::init()
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
-    m_window = glfwCreateWindow(m_width, m_height, m_title, nullptr, nullptr);
-    if (m_window == nullptr)
+    m_pGLFWWindow = glfwCreateWindow(m_width, m_height, m_title.c_str(), nullptr, nullptr);
+    if (m_pGLFWWindow == nullptr)
         return false;
-    glfwSetWindowUserPointer(m_window, this);
+    glfwSetWindowUserPointer(m_pGLFWWindow, this);
     //glfwSetFramebufferSizeCallback(m_window, Window::framebufferResizeCallback);
-    glfwSetMouseButtonCallback(m_window, Window::mouseDownCallback);
-    glfwSetCursorPosCallback(m_window, Window::mouseMoveCallback);
+    glfwSetMouseButtonCallback(m_pGLFWWindow, Window::mouseDownCallback);
+    glfwSetCursorPosCallback(m_pGLFWWindow, Window::mouseMoveCallback);
 
     return true;
 }
 
 Sirion::Window::~Window()
 {
-    glfwDestroyWindow(m_window);
+    m_app.cleanup();
+    glfwDestroyWindow(m_pGLFWWindow);
     glfwTerminate();
 }
 

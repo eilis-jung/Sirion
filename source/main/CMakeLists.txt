@@ -14,12 +14,13 @@ source_group(TREE ${CURR_PROJECT_SOURCE_DIR} FILES ${SOURCES} ${HEADERS})
 
 include_directories("${VULKAN_PATH}/Include")
 include_directories("${SIRION_EXTERNAL_DIR}/glm")
+include_directories("${SIRION_EXTERNAL_DIR}/tinyobjectloader")
 # include_directories("${SIRION_EXTERNAL_DIR}/stb")
 include_directories("${SIRION_ROOT_DIR}")
 add_executable(${TARGET_NAME} ${SOURCES} ${HEADERS})
 add_dependencies(${TARGET_NAME} glfw json11 )
-add_dependencies(${TARGET_NAME} SirionPrecompile SirionMath)
-target_link_libraries(${TARGET_NAME} glfw ${Vulkan_LIBRARY} json11 SirionMath)
+add_dependencies(${TARGET_NAME} SirionPrecompile SirionMath SirionParticles)
+target_link_libraries(${TARGET_NAME} glfw ${Vulkan_LIBRARY} json11 SirionMath SirionParticles)
 # target_include_directories(
 #   ${TARGET_NAME}
 #   PUBLIC $<BUILD_INTERFACE:${SIRION_ROOT_DIR}>)

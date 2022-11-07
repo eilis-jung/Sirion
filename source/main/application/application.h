@@ -17,14 +17,41 @@ namespace Sirion
 {
     class Application: public Component
     {
-    public:
-        Application() : Component() {
+    private:
+        GLFWwindow*       m_pWindow;
+        VkInstanceWrapper m_vkInstance;
+        VkInstance        instance;
 
+        // User behavior
+        double m_mouse_sensitivity = 0.5;
+        bool   m_mouse_left_down   = false;
+        bool   m_mouse_right_down  = false;
+        double m_prev_x            = 0.0;
+        double m_prev_y            = 0.0;
+
+        void initVulkan() { m_vkInstance.init(m_pWindow); }
+        void mainLoop()
+        {
+            while (!glfwWindowShouldClose(m_pWindow))
+            {
+                glfwPollEvents();
+                m_vkInstance.drawFrame(m_pWindow);
+            }
+            m_vkInstance.idle();
+        }
+    public:
+        Application() : Component() {}
+        //~Application() { m_vkInstance.cleanup();
+        //}
+        void init(GLFWwindow* pWindow) { m_pWindow = pWindow; }
+        void initParticles() { m_vkInstance.initParticles();
         }
         void run() {
-            //m_window.init();
+            initParticles();
             initVulkan();
             mainLoop();
+        }
+        void cleanup() { m_vkInstance.cleanup();
         }
 
         void mouseButtonPressLeft(double pos_x, double pos_y)
@@ -66,30 +93,6 @@ namespace Sirion
                 m_prev_y = pos_y;
                 updatePrimitives(0.0f, 0.0f, delta_z);
             }
-        }
-    private:
-        GLFWwindow*       m_pWindow;
-        //Window m_window;
-        VkInstanceWrapper m_vkInstance;
-        VkInstance        instance;
-
-        // User behavior
-        double m_mouse_sensitivity = 0.5;
-        bool   m_mouse_left_down  = false;
-        bool   m_mouse_right_down = false;
-        double m_prev_x      = 0.0;
-        double m_prev_y      = 0.0;
-        
-
-        void initVulkan() { m_vkInstance.init(m_pWindow); }
-        void mainLoop()
-        {
-            while (!glfwWindowShouldClose(m_pWindow))
-            {
-                glfwPollEvents();
-                m_vkInstance.drawFrame(m_pWindow);
-            }
-            m_vkInstance.idle();
         }
     };
 }

@@ -1,4 +1,35 @@
 #include "vulkan_utils.h"
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+#define TINYOBJLOADER_IMPLEMENTATION
+#include "tiny_obj_loader.h"
+#include "particles/particle_generator.h"
+
+#include <filesystem>
+#ifdef _WIN32
+#include <windows.h>
+#elif
+#include <unistd.h>
+#endif
+
+std::filesystem::path GetExeDirectory()
+{
+#ifdef _WIN32
+    // Windows specific
+    wchar_t szPath[MAX_PATH];
+    GetModuleFileNameW(NULL, szPath, MAX_PATH);
+#else
+    // Linux specific
+    char    szPath[PATH_MAX];
+    ssize_t count = readlink("/proc/self/exe", szPath, PATH_MAX);
+    if (count < 0 || count >= PATH_MAX)
+        return {}; // some error
+    szPath[count]               = '\0';
+#endif
+    return std::filesystem::path {szPath}.parent_path() / ""; // to finish the folder path with (back)slash
+}
+
+#include<iostream>
 
 Sirion::VkInstanceWrapper::VkInstanceWrapper() {}
 
@@ -148,7 +179,8 @@ void Sirion::VkInstanceWrapper::setupLogicalDevice()
     QueueFamilyIndices indices = findQueueFamilies(m_physicalDevice);
 
     std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-    std::set<uint32_t> uniqueQueueFamilies = { indices.graphicsFamily.value(), indices.presentFamily.value() };
+    std::set<uint32_t>                   uniqueQueueFamilies = {
+        indices.graphicsFamily.value(), indices.presentFamily.value()};
 
     float queuePriority = 1.0f;
     for (uint32_t queueFamily : uniqueQueueFamilies) {
@@ -162,6 +194,8 @@ void Sirion::VkInstanceWrapper::setupLogicalDevice()
 
 
     VkPhysicalDeviceFeatures deviceFeatures{};
+    deviceFeatures.samplerAnisotropy = VK_TRUE;
+
     VkDeviceCreateInfo deviceCreateInfo{};
     deviceCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
 
@@ -221,8 +255,26 @@ Sirion::SwapChainSupportDetails Sirion::VkInstanceWrapper::querySwapChainSupport
 VkSurfaceFormatKHR Sirion::VkInstanceWrapper::chooseSwapSurfaceFormat(
     const std::vector<VkSurfaceFormatKHR>& availableFormats)
 {
-    for (const auto& availableFormat : availableFormats) {
-        if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+    //for (const auto& availableFormat : availableFormats) {
+    //    if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+    //        return availableFormat;
+    //    }
+    //}
+
+    //return availableFormats[0];
+
+
+
+    if (availableFormats.size() == 1 && availableFormats[0].format == VK_FORMAT_UNDEFINED)
+    {
+        return {VK_FORMAT_B8G8R8A8_UNORM, VK_COLORSPACE_SRGB_NONLINEAR_KHR};
+    }
+
+    for (const auto& availableFormat : availableFormats)
+    {
+        if (availableFormat.format == VK_FORMAT_B8G8R8A8_UNORM &&
+            availableFormat.colorSpace == VK_COLORSPACE_SRGB_NONLINEAR_KHR)
+        {
             return availableFormat;
         }
     }
@@ -304,8 +356,8 @@ void Sirion::VkInstanceWrapper::setupSwapChain(GLFWwindow* window)
     else
     {
         swapChainCreateInfo.imageSharingMode      = VK_SHARING_MODE_EXCLUSIVE;
-        swapChainCreateInfo.queueFamilyIndexCount = 0;       // Optional
-        swapChainCreateInfo.pQueueFamilyIndices   = nullptr; // Optional
+        //swapChainCreateInfo.queueFamilyIndexCount = 0;       // Optional
+        //swapChainCreateInfo.pQueueFamilyIndices   = nullptr; // Optional
     }
 
     swapChainCreateInfo.preTransform = swapChainSupport.capabilities.currentTransform; // No pre-transformation
@@ -314,14 +366,14 @@ void Sirion::VkInstanceWrapper::setupSwapChain(GLFWwindow* window)
         VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR; // Ignore alpha channel when blending with other window
     swapChainCreateInfo.presentMode  = presentMode;
     swapChainCreateInfo.clipped      = VK_TRUE;
-    swapChainCreateInfo.oldSwapchain = VK_NULL_HANDLE;
-
+    //swapChainCreateInfo.oldSwapchain = VK_NULL_HANDLE;
+    swapChainCreateInfo.oldSwapchain = VkSwapchainKHR(nullptr);
     if (vkCreateSwapchainKHR(m_logicalDevice, &swapChainCreateInfo, nullptr, &m_swapChain) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to create swap chain!");
     }
 
-    vkGetSwapchainImagesKHR(m_logicalDevice, m_swapChain, &imageCount, nullptr);
+    //vkGetSwapchainImagesKHR(m_logicalDevice, m_swapChain, &imageCount, nullptr);
     m_swapChainImages.resize(imageCount);
     vkGetSwapchainImagesKHR(m_logicalDevice, m_swapChain, &imageCount, m_swapChainImages.data());
 
@@ -403,21 +455,82 @@ void Sirion::VkInstanceWrapper::setupRenderPass() {
     colorAttachmentRef.attachment = 0;
     colorAttachmentRef.layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
+    VkAttachmentDescription depthAttachment {};
+    depthAttachment.format         = findDepthFormat();
+    depthAttachment.samples        = VK_SAMPLE_COUNT_1_BIT;
+    depthAttachment.loadOp         = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    depthAttachment.storeOp        = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthAttachment.stencilLoadOp  = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    depthAttachment.initialLayout  = VK_IMAGE_LAYOUT_UNDEFINED;
+    depthAttachment.finalLayout    = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
+    VkAttachmentReference depthAttachmentRef {};
+    depthAttachmentRef.attachment = 1;
+    depthAttachmentRef.layout     = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
     VkSubpassDescription subpass {};
+    subpass.inputAttachmentCount    = 0;
+    subpass.pInputAttachments       = nullptr;
     subpass.pipelineBindPoint    = VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments    = &colorAttachmentRef;
+    subpass.pDepthStencilAttachment = &depthAttachmentRef;
+    subpass.preserveAttachmentCount = 0;
+    subpass.pPreserveAttachments    = nullptr;
+
+
+    VkSubpassDependency dependency {};
+    dependency.srcSubpass          = VK_SUBPASS_EXTERNAL;
+    dependency.dstSubpass          = 0;
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    // dependency.srcAccessMask = 0;
+    dependency.dstStageMask =
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    dependency.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+    std::vector<VkAttachmentDescription> attachments{colorAttachment, depthAttachment};
+
 
     VkRenderPassCreateInfo renderPassInfo {};
     renderPassInfo.sType           = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    renderPassInfo.attachmentCount = 1;
-    renderPassInfo.pAttachments    = &colorAttachment;
+    renderPassInfo.attachmentCount = static_cast<uint32_t>(attachments.size());
+    renderPassInfo.pAttachments    = attachments.data();
     renderPassInfo.subpassCount    = 1;
     renderPassInfo.pSubpasses      = &subpass;
+    renderPassInfo.dependencyCount = 1;
+    renderPassInfo.pDependencies   = &dependency;
 
     if (vkCreateRenderPass(m_logicalDevice, &renderPassInfo, nullptr, &m_renderPass) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to create render pass!");
+    }
+}
+
+void Sirion::VkInstanceWrapper::createDescriptorSetLayout() {
+    VkDescriptorSetLayoutBinding uboLayoutBinding {};
+    uboLayoutBinding.binding            = 0;
+    uboLayoutBinding.descriptorCount    = 1;
+    uboLayoutBinding.descriptorType     = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+    uboLayoutBinding.pImmutableSamplers = nullptr;
+    uboLayoutBinding.stageFlags         = VK_SHADER_STAGE_VERTEX_BIT;
+
+    VkDescriptorSetLayoutBinding samplerLayoutBinding {};
+    samplerLayoutBinding.binding            = 1;
+    samplerLayoutBinding.descriptorCount    = 1;
+    samplerLayoutBinding.descriptorType     = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+    samplerLayoutBinding.pImmutableSamplers = nullptr;
+    samplerLayoutBinding.stageFlags         = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+    std::array<VkDescriptorSetLayoutBinding, 2> bindings = {uboLayoutBinding, samplerLayoutBinding};
+    VkDescriptorSetLayoutCreateInfo             layoutInfo {};
+    layoutInfo.sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+    layoutInfo.pBindings    = bindings.data();
+
+    if (vkCreateDescriptorSetLayout(m_logicalDevice, &layoutInfo, nullptr, &m_descriptorSetLayout) != VK_SUCCESS)
+    {
+        throw std::runtime_error("failed to create descriptor set layout!");
     }
 }
 
@@ -446,8 +559,8 @@ void Sirion::VkInstanceWrapper::setupGraphicsPipeline() {
     vertexInputInfo.vertexAttributeDescriptionCount = 0;
 
 #pragma region TODO
-    auto bindingDescription    = Vertex::getBindingDescription();
-    auto attributeDescriptions = Vertex::getAttributeDescriptions();
+    auto bindingDescription    = getBindingDescription();
+    auto attributeDescriptions = getAttributeDescriptions();
 
     vertexInputInfo.vertexBindingDescriptionCount   = 1;
     vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
@@ -499,6 +612,7 @@ void Sirion::VkInstanceWrapper::setupGraphicsPipeline() {
     VkPipelineDepthStencilStateCreateInfo depthStencil {};
     // The depthTestEnable field specifies if the depth of new fragments should be compared to the depth buffer to see
     // if they should be discarded.
+    depthStencil.sType            = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
     depthStencil.depthTestEnable  = VK_TRUE;
     depthStencil.depthWriteEnable = VK_TRUE;
     // Specify the comparison that is performed to keep or discard fragments.
@@ -554,6 +668,7 @@ void Sirion::VkInstanceWrapper::setupGraphicsPipeline() {
     pipelineInfo.pRasterizationState = &rasterizer;
     pipelineInfo.pMultisampleState   = &multisampling;
     pipelineInfo.pColorBlendState    = &colorBlending;
+    pipelineInfo.pDepthStencilState  = &depthStencil;
     pipelineInfo.pDynamicState       = &dynamicState;
     pipelineInfo.layout              = m_pipelineLayout;
     pipelineInfo.renderPass          = m_renderPass;
@@ -645,7 +760,7 @@ VkFormat Sirion::VkInstanceWrapper::findSupportedFormat(const std::vector<VkForm
         {
             return format;
         }
-        else if (tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features)
+        else if (tiling == VK_IMAGE_TILING_OPTIMAL && ((props.optimalTilingFeatures & features) == features))
         {
             return format;
         }
@@ -778,7 +893,7 @@ void Sirion::VkInstanceWrapper::setupFramebuffers() {
 
     for (size_t i = 0; i < m_swapChainImageViews.size(); i++)
     {
-        std::array<VkImageView, 2> attachments = {m_swapChainImageViews[i], m_depthImageView};
+        std::vector<VkImageView> attachments{m_swapChainImageViews[i], m_depthImageView};
 
         VkFramebufferCreateInfo framebufferInfo {};
         framebufferInfo.sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -1136,10 +1251,10 @@ void Sirion::VkInstanceWrapper::createNumVertsBuffer() {
 
 void Sirion::VkInstanceWrapper::createCellVertArrayBuffer() {
 #pragma region move
-    createDataBuffer<int*>(static_cast<uint32_t>(sizeof(int) * m_num_grid_cells * 6),
+    createDataBuffer<int>(static_cast<uint32_t>(sizeof(int) * m_num_grid_cells * 6),
                            m_cellVertArrayBuffer,
                            m_cellVertArrayBufferMemory,
-                           &m_cellVertArray,
+                           m_cellVertArray,
                            (VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT),
                            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 #pragma endregion
@@ -1147,11 +1262,11 @@ void Sirion::VkInstanceWrapper::createCellVertArrayBuffer() {
 
 void Sirion::VkInstanceWrapper::createCellVertCountBuffer() {
 #pragma region move
-    createDataBuffer<int*>(
+    createDataBuffer<int>(
         static_cast<uint32_t>(sizeof(int) * m_num_grid_cells),
         m_cellVertCountBuffer,
         m_cellVertCountBufferMemory,
-        &m_cellVertCount,
+        m_cellVertCount,
         (VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT),
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 #pragma endregion
@@ -1174,8 +1289,8 @@ void Sirion::VkInstanceWrapper::createComputePipeline(const std::vector<unsigned
 {
     VkShaderModule computeShaderModule = VkUtils::createShaderModule(m_logicalDevice, shaderCode);
 
-
     VkPipelineShaderStageCreateInfo computeShaderStageInfo = {};
+    computeShaderStageInfo.sType                           = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     computeShaderStageInfo.flags                           = VkPipelineShaderStageCreateFlags();
     computeShaderStageInfo.stage                           = VkShaderStageFlagBits::VK_SHADER_STAGE_COMPUTE_BIT;
     computeShaderStageInfo.module                          = computeShaderModule;
@@ -1231,7 +1346,7 @@ void Sirion::VkInstanceWrapper::createComputePipeline(const std::vector<unsigned
                                                           computeLayoutBindingSphereVerts};
 
     VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
-    // descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+    descriptorSetLayoutCreateInfo.sType        = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     descriptorSetLayoutCreateInfo.flags        = VkDescriptorSetLayoutCreateFlags();
     descriptorSetLayoutCreateInfo.pNext        = nullptr;
     descriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(bindings.size());
@@ -1240,7 +1355,7 @@ void Sirion::VkInstanceWrapper::createComputePipeline(const std::vector<unsigned
     if (vkCreateDescriptorSetLayout(
         m_logicalDevice, &descriptorSetLayoutCreateInfo, nullptr, &m_computeDescriptorSetLayout) != VK_SUCCESS)
     {
-        throw std::runtime_error("failed to create computeDescriptorSetLayout!");
+        throw std::runtime_error("failed to create compute DescriptorSet Layout!");
     }
 
     std::array<VkDescriptorPoolSize, 1> poolSizes {};
@@ -1248,6 +1363,7 @@ void Sirion::VkInstanceWrapper::createComputePipeline(const std::vector<unsigned
     poolSizes[0].descriptorCount = 10;
 
     VkDescriptorPoolCreateInfo descriptorPoolInfo = {};
+    descriptorPoolInfo.sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
     descriptorPoolInfo.flags         = VkDescriptorPoolCreateFlags();
     descriptorPoolInfo.pNext         = nullptr;
     descriptorPoolInfo.poolSizeCount = 1;
@@ -1257,15 +1373,17 @@ void Sirion::VkInstanceWrapper::createComputePipeline(const std::vector<unsigned
     if (vkCreateDescriptorPool(m_logicalDevice, &descriptorPoolInfo, nullptr, &m_computeDescriptorPool) !=
         VK_SUCCESS)
     {
-        throw std::runtime_error("failed to create computeDescriptorPool!");
+        throw std::runtime_error("failed to create compute Descriptor Pool!");
     }
 
     VkDescriptorSetAllocateInfo allocInfo = {};
+    allocInfo.sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     allocInfo.descriptorPool     = m_computeDescriptorPool;
     allocInfo.descriptorSetCount = 1;
     allocInfo.pSetLayouts        = &m_computeDescriptorSetLayout;
 
-    if (vkAllocateDescriptorSets(m_logicalDevice, &allocInfo, m_computeDescriptorSet.data()) != VK_SUCCESS)
+    m_computeDescriptorSets.resize(1);
+    if (vkAllocateDescriptorSets(m_logicalDevice, &allocInfo, m_computeDescriptorSets.data()) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to allocate computeDescriptorSet!");
     }
@@ -1277,7 +1395,8 @@ void Sirion::VkInstanceWrapper::createComputePipeline(const std::vector<unsigned
     computeBufferInfoVertices1.range                  = static_cast<uint32_t>(m_raw_verts.size() * sizeof(Vertex));
 
     VkWriteDescriptorSet writeComputeInfoVertices1 = {};
-    writeComputeInfoVertices1.dstSet               = m_computeDescriptorSet[0];
+    writeComputeInfoVertices1.sType                = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writeComputeInfoVertices1.dstSet               = m_computeDescriptorSets[0];
     writeComputeInfoVertices1.dstBinding           = 0;
     writeComputeInfoVertices1.descriptorCount      = 1;
     writeComputeInfoVertices1.dstArrayElement      = 0;
@@ -1291,7 +1410,8 @@ void Sirion::VkInstanceWrapper::createComputePipeline(const std::vector<unsigned
     computeBufferInfoVertices2.range                  = static_cast<uint32_t>(m_raw_verts.size() * sizeof(Vertex));
 
     VkWriteDescriptorSet writeComputeInfoVertices2 = {};
-    writeComputeInfoVertices2.dstSet               = m_computeDescriptorSet[0];
+    writeComputeInfoVertices2.sType                = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writeComputeInfoVertices2.dstSet               = m_computeDescriptorSets[0];
     writeComputeInfoVertices2.dstBinding           = 1;
     writeComputeInfoVertices2.descriptorCount      = 1;
     writeComputeInfoVertices2.dstArrayElement      = 0;
@@ -1305,7 +1425,8 @@ void Sirion::VkInstanceWrapper::createComputePipeline(const std::vector<unsigned
     computeBufferInfoCellVertexArray.range                  = static_cast<uint32_t>(m_num_grid_cells * 6 * sizeof(int));
 
     VkWriteDescriptorSet writeComputeInfoCellVertexArray = {};
-    writeComputeInfoCellVertexArray.dstSet               = m_computeDescriptorSet[0];
+    writeComputeInfoCellVertexArray.sType                = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writeComputeInfoCellVertexArray.dstSet               = m_computeDescriptorSets[0];
     writeComputeInfoCellVertexArray.dstBinding           = 2;
     writeComputeInfoCellVertexArray.descriptorCount      = 1;
     writeComputeInfoCellVertexArray.dstArrayElement      = 0;
@@ -1319,7 +1440,8 @@ void Sirion::VkInstanceWrapper::createComputePipeline(const std::vector<unsigned
     computeBufferInfoCellVertexCount.range                  = static_cast<uint32_t>(m_num_grid_cells * sizeof(int));
 
     VkWriteDescriptorSet writeComputeInfoCellVertexCount = {};
-    writeComputeInfoCellVertexCount.dstSet               = m_computeDescriptorSet[0];
+    writeComputeInfoCellVertexCount.sType                = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writeComputeInfoCellVertexCount.dstSet               = m_computeDescriptorSets[0];
     writeComputeInfoCellVertexCount.dstBinding           = 3;
     writeComputeInfoCellVertexCount.descriptorCount      = 1;
     writeComputeInfoCellVertexCount.dstArrayElement      = 0;
@@ -1333,7 +1455,8 @@ void Sirion::VkInstanceWrapper::createComputePipeline(const std::vector<unsigned
     computeBufferInfoNumVerts.range                  = static_cast<uint32_t>(sizeof(int));
 
     VkWriteDescriptorSet writeComputeInfoNumVerts = {};
-    writeComputeInfoNumVerts.dstSet               = m_computeDescriptorSet[0];
+    writeComputeInfoNumVerts.sType                = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writeComputeInfoNumVerts.dstSet               = m_computeDescriptorSets[0];
     writeComputeInfoNumVerts.dstBinding           = 4;
     writeComputeInfoNumVerts.descriptorCount      = 1;
     writeComputeInfoNumVerts.dstArrayElement      = 0;
@@ -1347,7 +1470,8 @@ void Sirion::VkInstanceWrapper::createComputePipeline(const std::vector<unsigned
     computeBufferInfoSphereVerts.range                  = static_cast<uint32_t>(sizeof(Vertex) * m_sphere_verts.size());
 
     VkWriteDescriptorSet writeComputeInfoSphereVerts = {};
-    writeComputeInfoSphereVerts.dstSet               = m_computeDescriptorSet[0];
+    writeComputeInfoSphereVerts.sType                = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+    writeComputeInfoSphereVerts.dstSet               = m_computeDescriptorSets[0];
     writeComputeInfoSphereVerts.dstBinding           = 5;
     writeComputeInfoSphereVerts.descriptorCount      = 1;
     writeComputeInfoSphereVerts.dstArrayElement      = 0;
@@ -1366,6 +1490,7 @@ void Sirion::VkInstanceWrapper::createComputePipeline(const std::vector<unsigned
     std::array<VkDescriptorSetLayout, 1> descriptorSetLayouts = {m_computeDescriptorSetLayout};
 
     VkPipelineLayoutCreateInfo computePipelineLayoutInfo = {};
+    computePipelineLayoutInfo.sType                      = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     computePipelineLayoutInfo.flags                      = VkPipelineLayoutCreateFlags();
     computePipelineLayoutInfo.setLayoutCount             = static_cast<uint32_t>(descriptorSetLayouts.size());
     computePipelineLayoutInfo.pSetLayouts                = descriptorSetLayouts.data();
@@ -1380,11 +1505,12 @@ void Sirion::VkInstanceWrapper::createComputePipeline(const std::vector<unsigned
     }
 
     VkComputePipelineCreateInfo computePipelineInfo = {};
+    computePipelineInfo.sType                       = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
     computePipelineInfo.flags                       = VkPipelineCreateFlags();
     computePipelineInfo.stage                       = computeShaderStageInfo;
     computePipelineInfo.layout                      = m_computePipelineLayout;
 
-    if (vkCreateComputePipelines(m_logicalDevice, NULL, 0, &computePipelineInfo, nullptr, &pipeline) != VK_SUCCESS)
+    if (vkCreateComputePipelines(m_logicalDevice, NULL, 1, &computePipelineInfo, nullptr, &pipeline) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to create compute pipeline!");
     }
@@ -1418,13 +1544,21 @@ void Sirion::VkInstanceWrapper::updateUniformBuffer(uint32_t currentImage) {
     float time        = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
     UniformBufferObject ubo {};
-    ubo.model = glm::rotate(Matrix4(1.0f), time * glm::radians(90.0f), Vector3(0.0f, 0.0f, 1.0f));
-    ubo.view  = glm::lookAt(Vector3(2.0f, 2.0f, 2.0f), Vector3(0.0f, 0.0f, 0.0f), Vector3(0.0f, 0.0f, 1.0f));
+    ubo.model     = Matrix4(1.f);
+    float     r   = 20.0f;
+    Vector3 eye   = Vector3(5.0f, 10.0f, r);
+    ubo.view      = glm::lookAt(eye, Vector3(2.0f, 2.0f, 2.0f), Vector3(0.0f, 1.0f, 0.0f));
+
     ubo.proj =
-        glm::perspective(glm::radians(45.0f), m_swapChainExtent.width / (float)m_swapChainExtent.height, 0.1f, 10.0f);
+        glm::perspective(glm::radians(45.0f), m_swapChainExtent.width / (float)m_swapChainExtent.height, 0.1f, 30.0f);
     ubo.proj[1][1] *= -1;
 
-    memcpy(m_uniformBuffersMapped[currentImage], &ubo, sizeof(ubo));
+    void* data;
+    vkMapMemory(m_logicalDevice, m_uniformBuffersMemory[currentImage], 0, sizeof(ubo), 0, &data);
+
+    memcpy(data, &ubo, sizeof(ubo));
+
+    vkUnmapMemory(m_logicalDevice, m_uniformBuffersMemory[currentImage]);
 }
 
 void Sirion::VkInstanceWrapper::createDescriptorPool() {
@@ -1456,6 +1590,7 @@ void Sirion::VkInstanceWrapper::createDescriptorSets() {
     allocInfo.pSetLayouts        = layouts.data();
 
     m_descriptorSets.resize(m_swapChainImages.size());
+    //m_descriptorSets.resize(50);
     if (vkAllocateDescriptorSets(m_logicalDevice, &allocInfo, m_descriptorSets.data()) != VK_SUCCESS)
     {
         throw std::runtime_error("failed to allocate descriptor sets!");
@@ -1476,6 +1611,7 @@ void Sirion::VkInstanceWrapper::createDescriptorSets() {
 
 
         std::vector<VkWriteDescriptorSet> descriptorWrites(2);
+        descriptorWrites[0].sType  = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrites[0].dstSet = m_descriptorSets[i];
         // Give our uniform buffer binding index 0
         descriptorWrites[0].dstBinding = 0;
@@ -1486,6 +1622,7 @@ void Sirion::VkInstanceWrapper::createDescriptorSets() {
         descriptorWrites[0].descriptorCount = 1;
         descriptorWrites[0].pBufferInfo     = &bufferInfo;
 
+        descriptorWrites[1].sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         descriptorWrites[1].dstSet          = m_descriptorSets[i];
         descriptorWrites[1].dstBinding      = 1;
         descriptorWrites[1].dstArrayElement = 0;
@@ -1513,9 +1650,10 @@ void Sirion::VkInstanceWrapper::createCommandBuffers() {
         throw std::runtime_error("failed to allocate command buffers!");
     }
 
-        for (size_t i = 0; i < m_commandBuffers.size(); i++)
+    for (size_t i = 0; i < m_commandBuffers.size(); i++)
     {
         VkCommandBufferBeginInfo beginInfo = {};
+        beginInfo.sType                    = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         beginInfo.flags                    = VkCommandBufferUsageFlagBits::VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
 
         if (vkBeginCommandBuffer(m_commandBuffers[i], &beginInfo) != VK_SUCCESS)
@@ -1524,30 +1662,31 @@ void Sirion::VkInstanceWrapper::createCommandBuffers() {
         }
 
         VkRenderPassBeginInfo renderPassInfo = {};
+        renderPassInfo.sType                 = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         renderPassInfo.renderPass            = m_renderPass;
         renderPassInfo.framebuffer           = m_swapChainFramebuffers[i];
         renderPassInfo.renderArea.offset     = VkOffset2D {0, 0};
         renderPassInfo.renderArea.extent     = m_swapChainExtent;
 
         std::array<VkClearValue, 2> clearValues {};
-        clearValues[0].color           = m_clear_color;
-        clearValues[1].depthStencil    = VkClearDepthStencilValue {1.0f, 0};
+        clearValues[0].color           = {0.0f, 0.0f, 0.0f, 1.0f};
+        clearValues[1].depthStencil    = {1.0f, 0};
         renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
         renderPassInfo.pClearValues    = clearValues.data();
 
         // Bind the compute pipeline
-        // vkCmdBindPipeline(m_commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipelinePhysics);
         vkCmdBindPipeline(m_commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipelineResetCellVertex);
 
         // Bind descriptor sets for compute
-         vkCmdBindDescriptorSets(m_commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipelineLayout, 0, 1,
-         m_computeDescriptorSet.data(), 0, nullptr);
+        vkCmdBindDescriptorSets(m_commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipelineLayout, 0, 1,
+         m_computeDescriptorSets.data(), 0, nullptr);
 
         // Dispatch the compute kernel, with one thread for each vertex
-         vkCmdDispatch(m_commandBuffers[i], m_num_grid_cells, 1, 1);
+        vkCmdDispatch(m_commandBuffers[i], m_num_grid_cells, 1, 1);
 
         VkBufferMemoryBarrier computeToComputeBarrier = {};
-         computeToComputeBarrier.srcAccessMask =
+        computeToComputeBarrier.sType                 = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+        computeToComputeBarrier.srcAccessMask =
              VkAccessFlagBits::VK_ACCESS_SHADER_WRITE_BIT | VkAccessFlagBits::VK_ACCESS_SHADER_READ_BIT;
         computeToComputeBarrier.dstAccessMask =
              VkAccessFlagBits::VK_ACCESS_SHADER_WRITE_BIT | VkAccessFlagBits::VK_ACCESS_SHADER_READ_BIT;
@@ -1575,7 +1714,7 @@ void Sirion::VkInstanceWrapper::createCommandBuffers() {
 
         // Bind descriptor sets for compute
          vkCmdBindDescriptorSets(m_commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipelineLayout, 0, 1,
-                                m_computeDescriptorSet.data(),
+                                m_computeDescriptorSets.data(),
                                 0,
                                 nullptr);
 
@@ -1583,7 +1722,8 @@ void Sirion::VkInstanceWrapper::createCommandBuffers() {
          vkCmdDispatch(m_commandBuffers[i], uint32_t(m_raw_verts.size()), 1, 1);
 
         VkBufferMemoryBarrier computeToComputeBarrier1 = {};
-         computeToComputeBarrier1.srcAccessMask =
+        computeToComputeBarrier1.sType                 = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+        computeToComputeBarrier1.srcAccessMask =
              VkAccessFlagBits::VK_ACCESS_SHADER_WRITE_BIT | VkAccessFlagBits::VK_ACCESS_SHADER_READ_BIT;
         computeToComputeBarrier1.dstAccessMask =
             VkAccessFlagBits::VK_ACCESS_SHADER_WRITE_BIT | VkAccessFlagBits::VK_ACCESS_SHADER_READ_BIT;
@@ -1611,7 +1751,7 @@ void Sirion::VkInstanceWrapper::createCommandBuffers() {
 
         // Bind descriptor sets for compute
         vkCmdBindDescriptorSets(m_commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, m_computePipelineLayout, 0, 1,
-                                m_computeDescriptorSet.data(),
+                                m_computeDescriptorSets.data(),
                                 0,
                                 nullptr);
 
@@ -1619,6 +1759,7 @@ void Sirion::VkInstanceWrapper::createCommandBuffers() {
         vkCmdDispatch(m_commandBuffers[i], uint32_t(m_raw_verts.size()), 1, 1);
 
         VkBufferMemoryBarrier computeToComputeBarrier2 = {};
+        computeToComputeBarrier2.sType                 = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
         computeToComputeBarrier2.srcAccessMask =
             VkAccessFlagBits::VK_ACCESS_SHADER_WRITE_BIT | VkAccessFlagBits::VK_ACCESS_SHADER_READ_BIT;
         computeToComputeBarrier2.dstAccessMask =
@@ -1652,7 +1793,7 @@ void Sirion::VkInstanceWrapper::createCommandBuffers() {
                                 m_computePipelineLayout,
                                 0,
                                 1,
-                                m_computeDescriptorSet.data(),
+                                m_computeDescriptorSets.data(),
                                 0,
                                 nullptr);
 
@@ -1662,6 +1803,7 @@ void Sirion::VkInstanceWrapper::createCommandBuffers() {
 
         // Define a memory barrier to transition the vertex buffer from a compute storage object to a vertex input
         VkBufferMemoryBarrier computeToVertexBarrier = {};
+        computeToVertexBarrier.sType                 = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
         computeToVertexBarrier.srcAccessMask =
             VkAccessFlagBits::VK_ACCESS_SHADER_WRITE_BIT | VkAccessFlagBits::VK_ACCESS_SHADER_READ_BIT;
         computeToVertexBarrier.dstAccessMask         = VkAccessFlagBits::VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
@@ -1688,6 +1830,20 @@ void Sirion::VkInstanceWrapper::createCommandBuffers() {
         vkCmdBeginRenderPass(m_commandBuffers[i], &renderPassInfo, VkSubpassContents::VK_SUBPASS_CONTENTS_INLINE);
 
         vkCmdBindPipeline(m_commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
+
+        VkViewport viewport {};
+        viewport.x        = 0.0f;
+        viewport.y        = 0.0f;
+        viewport.width    = (float)m_swapChainExtent.width;
+        viewport.height   = (float)m_swapChainExtent.height;
+        viewport.minDepth = 0.0f;
+        viewport.maxDepth = 1.0f;
+        vkCmdSetViewport(m_commandBuffers[i], 0, 1, &viewport);
+
+        VkRect2D scissor {};
+        scissor.offset = {0, 0};
+        scissor.extent = m_swapChainExtent;
+        vkCmdSetScissor(m_commandBuffers[i], 0, 1, &scissor);
 
         VkBuffer     vertexBuffers[] = {m_sphereVertsBuffer};
         VkDeviceSize offsets[]       = {0};
@@ -1790,6 +1946,10 @@ Sirion::QueueFamilyIndices Sirion::VkInstanceWrapper::findQueueFamilies(VkPhysic
         if (presentSupport) {
             indices.presentFamily = i;
         }
+        if (queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT)
+        {
+            indices.computeFamily = i;
+        }
         if (indices.isComplete()) {
             break;
         }
@@ -1799,77 +1959,73 @@ Sirion::QueueFamilyIndices Sirion::VkInstanceWrapper::findQueueFamilies(VkPhysic
     return indices;
 }
 
-void Sirion::VkInstanceWrapper::init(GLFWwindow* window)
-{
-#if defined(__GNUC__)
-    // https://gcc.gnu.org/onlinedocs/cpp/Common-Predefined-Macros.html
-#if defined(__linux__)
-    char const* vk_layer_path = PICCOLO_XSTR(PICCOLO_VK_LAYER_PATH);
-    setenv("VK_LAYER_PATH", vk_layer_path, 1);
-#elif defined(__MACH__)
-    // https://developer.apple.com/library/archive/documentation/Porting/Conceptual/PortingUnix/compiling/compiling.html
-    char const* vk_layer_path    = PICCOLO_XSTR(PICCOLO_VK_LAYER_PATH);
-    char const* vk_icd_filenames = PICCOLO_XSTR(PICCOLO_VK_ICD_FILENAMES);
-    setenv("VK_LAYER_PATH", vk_layer_path, 1);
-    setenv("VK_ICD_FILENAMES", vk_icd_filenames, 1);
-#else
-#error Unknown Platform
-#endif
-#elif defined(_MSC_VER)
-    // https://docs.microsoft.com/en-us/cpp/preprocessor/predefined-macros
 
-    // For the case when AMD & NVDA GPUs co-exist, and AMD prevents switching to NVDA
-    SetEnvironmentVariableA("DISABLE_LAYER_AMD_SWITCHABLE_GRAPHICS_1", "1");
-#else
-#error Unknown Compiler
-#endif
-    m_createInfo.sType            = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    m_createInfo.pApplicationInfo = initAppInfo();
+void Sirion::VkInstanceWrapper::loadModel() {
 
-    initExtensions();
-    initValidationLayers();
 
-    if (vkCreateInstance(&m_createInfo, nullptr, &m_instance) != VK_SUCCESS)
-    {
-        throw std::runtime_error("failed to create instance!");
+
+    auto                             bb = std::filesystem::path(m_sphere_path).root_directory().string();
+        tinyobj::attrib_t                attrib;
+        std::vector<tinyobj::shape_t>    shapes;
+        std::vector<tinyobj::material_t> materials;
+        std::string                      warn, err;
+        std::string                      executable_path(GetExeDirectory().string());
+        if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, m_sphere_path.c_str()))
+        {
+            std::cerr << warn + err << std::endl;
+            return;
+        }
+
+        const float scale = 0.2f;
+
+        // std::unordered_map<Vertex, uint32_t> uniqueVertices;
+        for (const auto& shape : shapes)
+        {
+            for (const auto& index : shape.mesh.indices)
+            {
+                Vertex vertex {};
+
+                glm::vec3 pos = {attrib.vertices[3 * index.vertex_index + 0],
+                                 attrib.vertices[3 * index.vertex_index + 1],
+                                 attrib.vertices[3 * index.vertex_index + 2]};
+
+                vertex.position   = glm::vec4(pos, 1.f) * scale;
+                vertex.position.w = 1.f;
+                vertex.color      = glm::vec4(glm::normalize(pos), 1.f);
+
+                m_model_verts.push_back(vertex);
+                m_model_indices.push_back(m_model_indices.size());
+            }
+        }
+
+        std::cout << "Model vertices number: " << m_model_verts.size() << std::endl;
+}
+
+void Sirion::VkInstanceWrapper::initParticles() {
+    loadModel();
+
+    int             idxForWholeVertices = 0;
+    const Vector3 OFFSET(0.05f, 0.05f, 0.05f);
+    ParticleGenerator::createTanglecube(
+        m_raw_verts, m_raw_indices, idxForWholeVertices, 45, Vector3(2.05f, 3.06f, 2.05f), Vector3(1.f, 0.f, 0.f));
+
+    int sphereIdx = 0;
+    for (int i = 0; i < m_raw_verts.size(); i++)
+    { // 27000
+        auto translation = m_raw_verts[i].position;
+        translation.w    = 0.f;
+        for (int j = 0; j < m_model_verts.size(); j++)
+        { // 180
+            Vertex v = m_model_verts[j];
+            v.position += translation;
+            m_sphere_verts.push_back(v);
+            m_sphere_indices.push_back(sphereIdx);
+            sphereIdx++;
+        }
     }
+    std::cout << "Number of raw_verts: " << m_raw_verts.size() << std::endl;
+    std::cout << "Number of sphereIdx: " << sphereIdx << std::endl;
 
-    setupWindowSurface(window);
-    setupPhysicalDevice();
-    setupLogicalDevice();
-    setupSwapChain(window);
-    setupImageViews();
-    setupRenderPass();
-    setupGraphicsPipeline();
-
-    // ===============
-
-    setupCommandPool();
-    setupDepthResources();
-    setupFramebuffers();
-    setupTextureImage();
-    setupTextureImageView();
-    setupTextureSampler();
-
-    // loadModel();
-    createVertexBuffers();
-    createIndexBuffer();
-    createNumVertsBuffer();
-
-    createCellVertArrayBuffer();
-    createCellVertCountBuffer();
-    createSphereVertsBuffer();
-
-    createComputePipeline(PHYSICSCOMPUTE_COMP, m_computePipelinePhysics);
-    createComputePipeline(FILLCELLVERTEXINFO_COMP, m_computePipelineFillCellVertex);
-    createComputePipeline(RESETCELLVERTEXINFO_COMP, m_computePipelineResetCellVertex);
-    createComputePipeline(SPHEREVERTEXCOMPUTE_COMP, m_computePipelineSphereVertex);
-
-    createUniformBuffers();
-    createDescriptorPool();
-    createDescriptorSets();
-    createCommandBuffers();
-    createSyncObjects();
 }
 
 
@@ -1887,6 +2043,7 @@ void Sirion::VkInstanceWrapper::drawFrame(GLFWwindow* window)
                                         m_imageAvailableSemaphores[m_currentFrame],
                                         nullptr,
                                         &imageIndex);
+    imageIndex  = (uint32_t)vr;
     if (vr != VK_SUCCESS)
     {
         if (vr == VkResult::VK_ERROR_OUT_OF_DATE_KHR)
@@ -1904,6 +2061,7 @@ void Sirion::VkInstanceWrapper::drawFrame(GLFWwindow* window)
     copyBuffer(m_vertexBuffer2, m_vertexBuffer1, bufferSize);
     updateUniformBuffer(imageIndex);
     VkSubmitInfo submitInfo = {};
+    submitInfo.sType        = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
     VkSemaphore          waitSemaphores[] = {m_imageAvailableSemaphores[m_currentFrame]};
     VkPipelineStageFlags waitStages[]     = {VkPipelineStageFlagBits::VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
@@ -1925,6 +2083,7 @@ void Sirion::VkInstanceWrapper::drawFrame(GLFWwindow* window)
     }
 
     VkPresentInfoKHR presentInfo   = {};
+    presentInfo.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pWaitSemaphores    = signalSemaphores;
 
@@ -1954,7 +2113,7 @@ void Sirion::VkInstanceWrapper::drawFrame(GLFWwindow* window)
     m_currentFrame = (m_currentFrame + 1) % m_max_frames_in_flight;
 }
 
-Sirion::VkInstanceWrapper::~VkInstanceWrapper()
+void Sirion::VkInstanceWrapper::cleanup()
 {
     // Swap chain has to be destroyed before surface
     cleanupSwapChain();
@@ -2007,6 +2166,60 @@ Sirion::VkInstanceWrapper::~VkInstanceWrapper()
     delete m_createInfo.pApplicationInfo;
     delete m_createInfo.ppEnabledLayerNames; // ppEnabledLayerNames is a pointer to heap
 }
+
+//Sirion::VkInstanceWrapper::~VkInstanceWrapper()
+//{
+//    // Swap chain has to be destroyed before surface
+//    cleanupSwapChain();
+//    vkDestroyPipeline(m_logicalDevice, m_computePipelinePhysics, nullptr);
+//    vkDestroyPipeline(m_logicalDevice, m_computePipelineFillCellVertex, nullptr);
+//    vkDestroyPipeline(m_logicalDevice, m_computePipelineResetCellVertex, nullptr);
+//    vkDestroyPipeline(m_logicalDevice, m_computePipelineSphereVertex, nullptr);
+//    vkDestroyPipelineLayout(m_logicalDevice, m_computePipelineLayout, nullptr);
+//    vkDestroyDescriptorPool(m_logicalDevice, m_computeDescriptorPool, nullptr);
+//    vkDestroyDescriptorSetLayout(m_logicalDevice, m_computeDescriptorSetLayout, nullptr);
+//
+//    // The main texture image is used till the end
+//    vkDestroySampler(m_logicalDevice, m_textureSampler, nullptr);
+//    vkDestroyImageView(m_logicalDevice, m_textureImageView, nullptr);
+//    vkDestroyImage(m_logicalDevice, m_textureImage, nullptr);
+//    vkFreeMemory(m_logicalDevice, m_textureImageMemory, nullptr);
+//
+//    vkDestroyBuffer(m_logicalDevice, m_numVertsBuffer, nullptr);
+//    vkFreeMemory(m_logicalDevice, m_numVertsBufferMemory, nullptr);
+//
+//    vkDestroyBuffer(m_logicalDevice, m_vertexBuffer1, nullptr);
+//    vkFreeMemory(m_logicalDevice, m_vertexBufferMemory1, nullptr);
+//
+//    vkDestroyBuffer(m_logicalDevice, m_vertexBuffer2, nullptr);
+//    vkFreeMemory(m_logicalDevice, m_vertexBufferMemory2, nullptr);
+//
+//    vkDestroyBuffer(m_logicalDevice, m_indexBuffer, nullptr);
+//    vkFreeMemory(m_logicalDevice, m_indexBufferMemory, nullptr);
+//
+//    vkDestroyBuffer(m_logicalDevice, m_cellVertArrayBuffer, nullptr);
+//    vkFreeMemory(m_logicalDevice, m_cellVertArrayBufferMemory, nullptr);
+//    vkDestroyBuffer(m_logicalDevice, m_cellVertCountBuffer, nullptr);
+//    vkFreeMemory(m_logicalDevice, m_cellVertCountBufferMemory, nullptr);
+//    vkDestroyBuffer(m_logicalDevice, m_sphereVertsBuffer, nullptr);
+//    vkFreeMemory(m_logicalDevice, m_sphereVertsBufferMemory, nullptr);
+//
+//    for (size_t i = 0; i < m_max_frames_in_flight; i++)
+//    {
+//        vkDestroySemaphore(m_logicalDevice, m_renderFinishedSemaphores[i], nullptr);
+//        vkDestroySemaphore(m_logicalDevice, m_imageAvailableSemaphores[i], nullptr);
+//        vkDestroyFence(m_logicalDevice, m_inFlightFences[i], nullptr);
+//    }
+//
+//    vkDestroyCommandPool(m_logicalDevice, m_commandPool, nullptr);
+//
+//    vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
+//    vkDestroyDevice(m_logicalDevice, nullptr);
+//    vkDestroyInstance(m_instance, nullptr);
+//
+//    delete m_createInfo.pApplicationInfo;
+//    delete m_createInfo.ppEnabledLayerNames; // ppEnabledLayerNames is a pointer to heap
+//}
 
 VkShaderModule Sirion::VkUtils::createShaderModule(VkDevice& device, const std::vector<unsigned char>& shader_code)
 {

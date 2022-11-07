@@ -1,10 +1,11 @@
 #pragma once
-#include <vector>
+
 #include "math/math.h"
+#include <vector>
 
 namespace Sirion
 {
-    namespace PointsGenerator
+    namespace ParticleGenerator
     {
         void createCube(std::vector<Vertex>&   verts,
                         std::vector<uint32_t>& indices,
@@ -232,5 +233,7 @@ namespace Sirion
             }
             idxForWholeVertices = idx;
         }
-    }
+    } // namespace ParticleGenerator
+
+
 }
