@@ -10,7 +10,6 @@ function(compile_shader SHADERS TARGET_NAME SHADER_INCLUDE_FOLDER GENERATED_DIR 
     endif()
 
     foreach(SHADER ${SHADERS})
-    # Prepare a header name and a global variable for this shader
         get_filename_component(SHADER_NAME ${SHADER} NAME)
         string(REPLACE "." "_" HEADER_NAME ${SHADER_NAME})
         string(TOUPPER ${HEADER_NAME} GLOBAL_SHADER_VAR)
