@@ -3,10 +3,11 @@
 #include <string>
 #include <memory>
 #include "main/serializer/reflection.h"
+#include "main/core/manager/component_manager.h"
+#include "main/application/application.h"
 
 namespace Sirion
 {
-    class Application;
     class SceneManager;
     class Window;
 
@@ -29,22 +30,22 @@ namespace Sirion
         }
 
         void init() { 
-            std::shared_ptr<Application> app = std::make_shared<Application>();
-            m_current_application            = app;
+            m_current_application = std::make_shared<Application>();
+            std::shared_ptr<Application> temp(m_current_application);
+            ComponentManager::getInstance().add(temp);
+            m_current_application->run();
         }
         std::weak_ptr<Application> getCurrentApplication() const { 
             return m_current_application;
         }
 
-        std::weak_ptr<Window> getCurrentWindow() const;
+        std::weak_ptr<Window> getCurrentWindow() const {
+            return m_current_application->getWindow();
+        };
     private:
-        std::weak_ptr<Application> m_current_application;
+        std::shared_ptr<Application> m_current_application;
         std::string                m_title;
         SceneConfig                m_scene_config;
     };
-
-    
-
 }
-#include "main/core/manager.h"
-#include "main/application/application.h"
+
