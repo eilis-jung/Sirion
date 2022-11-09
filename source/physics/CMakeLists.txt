@@ -1,35 +1,33 @@
-﻿cmake_minimum_required (VERSION 3.8)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR})
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_LIBRARY_DIR})
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_LIBRARY_DIR})
+﻿include(${PROJECT_SOURCE_DIR}/cmake/base.cmake)
 
-foreach( OUTPUTCONFIG ${CMAKE_CONFIGURATION_TYPES} )
-    string( TOUPPER ${OUTPUTCONFIG} OUTPUTCONFIG )
-    set( CMAKE_RUNTIME_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${PROJECT_BINARY_DIR})
-    set( CMAKE_LIBRARY_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${PROJECT_LIBRARY_DIR})
-    set( CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${OUTPUTCONFIG} ${PROJECT_LIBRARY_DIR})
-endforeach( OUTPUTCONFIG CMAKE_CONFIGURATION_TYPES )
+set(TARGET_NAME SirionPhysics)
 
-set(CURR_PROJECT_SOURCE_DIR "${SIRION_ROOT_DIR}/physics/src")
-set(CURR_PROJECT_HEADER_DIR "${SIRION_ROOT_DIR}/physics/include")
-include_directories("include")
+set(CURR_PROJECT_SOURCE_DIR "${SIRION_ROOT_DIR}/physics")
 
-file(GLOB_RECURSE SOURCES
-    src/*.cpp
-)
-file(GLOB_RECURSE HEADERS
-    include/*.h
-)
-
-add_library(SirionPhysics ${SOURCES} ${HEADERS})
+file(GLOB_RECURSE SOURCES "*.cpp")
+file(GLOB_RECURSE HEADERS "*.h")
 
 # Build 3rd-party tools
 file(GLOB GLFW_LIBRARY ${PROJECT_LIBRARY_DIR}/glfw/glfw3.lib)
 
+source_group(TREE ${CURR_PROJECT_SOURCE_DIR} FILES ${SOURCES} ${HEADERS})
 
-source_group(TREE ${CURR_PROJECT_SOURCE_DIR} FILES ${SOURCES})
-source_group(TREE ${CURR_PROJECT_HEADER_DIR} FILES ${HEADERS})
+include_directories("${VULKAN_PATH}/Include")
+include_directories("${SIRION_EXTERNAL_DIR}/glm")
+include_directories("${SIRION_EXTERNAL_DIR}/tinyobjectloader")
+# include_directories("${SIRION_EXTERNAL_DIR}/stb")
+include_directories("${SIRION_ROOT_DIR}")
+add_library(${TARGET_NAME} ${SOURCES} ${HEADERS})
+add_dependencies(${TARGET_NAME} glfw json11 )
+add_dependencies(${TARGET_NAME} SirionPrecompile SirionMath SirionParticles)
+target_link_libraries(${TARGET_NAME} glfw ${Vulkan_LIBRARY} json11 SirionMath SirionParticles)
+# target_include_directories(
+#   ${TARGET_NAME}
+#   PUBLIC $<BUILD_INTERFACE:${SIRION_ROOT_DIR}>)
+
+# set global var used by precompile
+set(SIRION_MAIN_HEADERS "${HEADERS}" PARENT_SCOPE)
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
-  set_property(TARGET SirionPhysics PROPERTY CXX_STANDARD 20)
+  set_property(TARGET ${TARGET_NAME} PROPERTY CXX_STANDARD 20)
 endif()

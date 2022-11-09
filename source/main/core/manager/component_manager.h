@@ -4,8 +4,6 @@
 
 namespace Sirion
 {
-    //typedef Manager<Component> ComponentManager;
-
     class ComponentManager : public PublicSingleton<ComponentManager>
     {
         friend class PublicSingleton<ComponentManager>;

@@ -8,7 +8,7 @@
 #include <stdexcept>
 #include <vector>
 #include "main/ui/window.h"
-#include "main/ui/vulkan_wrapper.h"
+//#include "main/vulkan_wrapper/vulkan_wrapper.h"
 #include "main/core/manager/component_manager.h"
 #include "application_config.h"
 
@@ -19,8 +19,8 @@ namespace Sirion
     protected:
         ApplicationConfig m_application_config;
         std::shared_ptr<Window> m_window;
-        VulkanWrapper m_vkInstance;
-        VkInstance        instance;
+        //VulkanWrapper m_vkInstance;
+        //VkInstance        instance;
     public:
         Application() : Component()
         {

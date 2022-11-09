@@ -1,18 +1,22 @@
 #pragma once
 
 #include "math/math.h"
+#include <glm/glm.hpp>
+#include <iostream>
+#include <string>
+#include <tiny_obj_loader.h>
 #include <vector>
 
 namespace Sirion
 {
-    namespace ParticleGenerator
+    namespace PointsGenerator
     {
         void createCube(std::vector<Vertex>&   verts,
                         std::vector<uint32_t>& indices,
                         int&                   idxForWholeVertices,
                         const int              N_SIDE,
-                        const glm::vec3&       OFFSET,
-                        const glm::vec3&       COLOR)
+                        const Vector3&         OFFSET,
+                        const Vector3&         COLOR)
         {
             float l = (float)N_SIDE / 10.f;
 
@@ -23,13 +27,13 @@ namespace Sirion
                 {
                     for (int k = 0; k < N_SIDE; ++k)
                     {
-                        glm::vec3 position;
-                        position = glm::vec3(k * l / (float)N_SIDE, j * l / (float)N_SIDE, i * l / (float)N_SIDE);
+                        Vector3 position;
+                        position = Vector3(k * l / (float)N_SIDE, j * l / (float)N_SIDE, i * l / (float)N_SIDE);
                         position += OFFSET;
 
                         Vertex v;
-                        v.position = glm::vec4(position, 1.f);
-                        v.color    = glm::vec4(COLOR, 1.f);
+                        v.position = Vector4(position, 1.f);
+                        v.color    = Vector4(COLOR, 1.f);
                         verts.push_back(v);
                         indices.push_back(idx);
                         idx++;
@@ -45,9 +49,9 @@ namespace Sirion
                           std::vector<uint32_t>& indices,
                           int&                   idxForWholeVertices,
                           const int              N_SIDE,
-                          const glm::vec3&       OFFSET,
-                          const glm::vec3&       COLOR,
-                          const glm::vec3&       InitialVel = glm::vec3(0.f))
+                          const Vector3&         OFFSET,
+                          const Vector3&         COLOR,
+                          const Vector3&         InitialVel = Vector3(0.f))
         {
             float       l   = float(N_SIDE) / 10.f;
             const float MID = float(N_SIDE) / 2;
@@ -57,25 +61,25 @@ namespace Sirion
             {
                 for (int j = 0; j < N_SIDE; ++j) // y
                 {
-                    float     y      = j * l / float(N_SIDE);
-                    float     mid_l  = MID * l / float(N_SIDE);
-                    float     dy     = j < MID ? mid_l - y : y - mid_l;
-                    float     r2     = mid_l * mid_l - dy * dy;
-                    glm::vec3 center = glm::vec3(mid_l, y, mid_l) + OFFSET;
+                    float   y      = j * l / float(N_SIDE);
+                    float   mid_l  = MID * l / float(N_SIDE);
+                    float   dy     = j < MID ? mid_l - y : y - mid_l;
+                    float   r2     = mid_l * mid_l - dy * dy;
+                    Vector3 center = Vector3(mid_l, y, mid_l) + OFFSET;
                     for (int k = 0; k < N_SIDE; ++k) // x
                     {
-                        glm::vec3 position;
-                        position = glm::vec3(k * l / float(N_SIDE), y, i * l / float(N_SIDE));
+                        Vector3 position;
+                        position = Vector3(k * l / float(N_SIDE), y, i * l / float(N_SIDE));
                         position += OFFSET;
 
-                        glm::vec3 diff = position - center;
+                        Vector3 diff = position - center;
                         if (diff.x * diff.x + diff.z * diff.z > r2)
                             continue;
 
                         Vertex v;
-                        v.position = glm::vec4(position, 1.f);
-                        v.color    = glm::vec4(COLOR, 1.f);
-                        v.velocity = glm::vec4(InitialVel, 1.f);
+                        v.position = Vector4(position, 1.f);
+                        v.color    = Vector4(COLOR, 1.f);
+                        v.velocity = Vector4(InitialVel, 1.f);
                         verts.push_back(v);
                         indices.push_back(idx);
                         idx++;
@@ -86,7 +90,7 @@ namespace Sirion
             idxForWholeVertices = idx;
         }
 
-        bool inTanglecube(const glm::vec3& p)
+        bool inTanglecube(const Vector3& p)
         {
             const float x2 = p.x * p.x;
             const float y2 = p.y * p.y;
@@ -98,13 +102,13 @@ namespace Sirion
                               std::vector<uint32_t>& indices,
                               int&                   idxForWholeVertices,
                               const int              N_SIDE,
-                              const glm::vec3&       OFFSET,
-                              const glm::vec3&       COLOR)
+                              const Vector3&         OFFSET,
+                              const Vector3&         COLOR)
         {
-            float           l      = float(N_SIDE) / 10.f;
-            const float     MID    = float(N_SIDE) / 2;
-            const float     MID_L  = MID * l / float(N_SIDE);
-            const glm::vec3 center = glm::vec3(MID_L, MID_L, MID_L);
+            float         l      = float(N_SIDE) / 10.f;
+            const float   MID    = float(N_SIDE) / 2;
+            const float   MID_L  = MID * l / float(N_SIDE);
+            const Vector3 center = Vector3(MID_L, MID_L, MID_L);
 
             int idx = idxForWholeVertices;
             for (int i = 0; i < N_SIDE; ++i) // z
@@ -115,15 +119,15 @@ namespace Sirion
                     float y = j * l / float(N_SIDE);
                     for (int k = 0; k < N_SIDE; ++k) // x
                     {
-                        glm::vec3 position = glm::vec3(k * l / float(N_SIDE), y, z);
-                        glm::vec3 diff     = position - center;
+                        Vector3 position = Vector3(k * l / float(N_SIDE), y, z);
+                        Vector3 diff     = position - center;
 
                         if (!inTanglecube(diff))
                             continue;
 
                         Vertex v;
-                        v.position = glm::vec4(position + OFFSET, 1.f);
-                        v.color    = glm::vec4(COLOR, 1.f);
+                        v.position = Vector4(position + OFFSET, 1.f);
+                        v.color    = Vector4(COLOR, 1.f);
                         verts.push_back(v);
                         indices.push_back(idx);
                         idx++;
@@ -134,7 +138,7 @@ namespace Sirion
             idxForWholeVertices = idx;
         }
 
-        bool inHeart(const glm::vec3& p)
+        bool inHeart(const Vector3& p)
         {
             const float h = 1.0f, r1 = 1.0f, r2 = 0.0f;
             const float x2   = p.x * p.x;
@@ -149,13 +153,13 @@ namespace Sirion
                          std::vector<uint32_t>& indices,
                          int&                   idxForWholeVertices,
                          const int              N_SIDE,
-                         const glm::vec3&       OFFSET,
-                         const glm::vec3&       COLOR)
+                         const Vector3&         OFFSET,
+                         const Vector3&         COLOR)
         {
-            float           l      = float(N_SIDE) / 10.f;
-            const float     MID    = float(N_SIDE) / 2;
-            const float     MID_L  = MID * l / float(N_SIDE);
-            const glm::vec3 center = glm::vec3(MID_L, MID_L, MID_L);
+            float         l      = float(N_SIDE) / 10.f;
+            const float   MID    = float(N_SIDE) / 2;
+            const float   MID_L  = MID * l / float(N_SIDE);
+            const Vector3 center = Vector3(MID_L, MID_L, MID_L);
 
             int idx = idxForWholeVertices;
             for (int i = 0; i < N_SIDE; ++i) // z
@@ -166,16 +170,16 @@ namespace Sirion
                     float y = j * l / float(N_SIDE);
                     for (int k = 0; k < N_SIDE; ++k) // x
                     {
-                        glm::vec3 position = glm::vec3(k * l / float(N_SIDE), y, z);
-                        glm::vec3 diff     = position - center;
+                        Vector3 position = Vector3(k * l / float(N_SIDE), y, z);
+                        Vector3 diff     = position - center;
 
                         if (!inHeart(diff))
                             continue;
 
                         Vertex v;
-                        position   = glm::vec3(position.y, position.z, position.x);
-                        v.position = glm::vec4(position + OFFSET, 1.f);
-                        v.color    = glm::vec4(COLOR, 1.f);
+                        position   = Vector3(position.y, position.z, position.x);
+                        v.position = Vector4(position + OFFSET, 1.f);
+                        v.color    = Vector4(COLOR, 1.f);
                         verts.push_back(v);
                         indices.push_back(idx);
                         idx++;
@@ -186,7 +190,7 @@ namespace Sirion
             idxForWholeVertices = idx;
         }
 
-        bool inTorus(const glm::vec3& p)
+        bool inTorus(const Vector3& p)
         {
             const float r1 = 1.0f, r2 = 0.5f;
             const float q   = sqrt(p.x * p.x + p.z * p.z) - r1;
@@ -198,13 +202,13 @@ namespace Sirion
                          std::vector<uint32_t>& indices,
                          int&                   idxForWholeVertices,
                          const int              N_SIDE,
-                         const glm::vec3&       OFFSET,
-                         const glm::vec3&       COLOR)
+                         const Vector3&         OFFSET,
+                         const Vector3&         COLOR)
         {
-            float           l      = float(N_SIDE) / 10.f;
-            const float     MID    = float(N_SIDE) / 2;
-            const float     MID_L  = MID * l / float(N_SIDE);
-            const glm::vec3 center = glm::vec3(MID_L, MID_L, MID_L);
+            float         l      = float(N_SIDE) / 10.f;
+            const float   MID    = float(N_SIDE) / 2;
+            const float   MID_L  = MID * l / float(N_SIDE);
+            const Vector3 center = Vector3(MID_L, MID_L, MID_L);
 
             int idx = idxForWholeVertices;
             for (int i = 0; i < N_SIDE; ++i) // z
@@ -215,16 +219,16 @@ namespace Sirion
                     float y = j * l / float(N_SIDE);
                     for (int k = 0; k < N_SIDE; ++k) // x
                     {
-                        glm::vec3 position = glm::vec3(k * l / float(N_SIDE), y, z);
-                        glm::vec3 diff     = position - center;
+                        Vector3 position = Vector3(k * l / float(N_SIDE), y, z);
+                        Vector3 diff     = position - center;
 
                         if (!inTorus(diff))
                             continue;
 
                         Vertex v;
-                        position   = glm::vec3(position.y, position.z, position.x);
-                        v.color    = glm::vec4(COLOR, 1.f);
-                        v.position = glm::vec4(position + OFFSET, 1.f);
+                        position   = Vector3(position.y, position.z, position.x);
+                        v.color    = Vector4(COLOR, 1.f);
+                        v.position = Vector4(position + OFFSET, 1.f);
                         verts.push_back(v);
                         indices.push_back(idx);
                         idx++;
@@ -233,7 +237,84 @@ namespace Sirion
             }
             idxForWholeVertices = idx;
         }
-    } // namespace ParticleGenerator
+    } // namespace PointsGenerator
 
+    class Particles
+    {
+    public:
+        Particles() {};
+        std::vector<Vertex>   m_verts;
+        std::vector<uint32_t> m_indices;
+        std::vector<Vertex>   m_raw_verts;
+        std::vector<uint32_t> m_raw_indices;
+        std::vector<Vertex>   m_sphere_verts;
+        std::vector<uint32_t> m_sphere_indices;
 
-}
+        void init()
+        {
+            int             idxForWholeVertices = 0;
+            const glm::vec3 OFFSET(0.05f, 0.05f, 0.05f);
+            PointsGenerator::createTanglecube(m_raw_verts,
+                                              m_raw_indices,
+                                              idxForWholeVertices,
+                                              45,
+                                              glm::vec3(2.05f, 3.06f, 2.05f),
+                                              glm::vec3(1.f, 0.f, 0.f));
+
+            int sphereIdx = 0;
+            for (int i = 0; i < m_raw_verts.size(); i++)
+            {
+                auto translation = m_raw_verts[i].position;
+                translation.w    = 0.f;
+                for (int j = 0; j < m_verts.size(); j++)
+                {
+                    Vertex v = m_verts[j];
+                    v.position += translation;
+                    m_sphere_verts.push_back(v);
+                    m_sphere_indices.push_back(sphereIdx);
+                    sphereIdx++;
+                }
+            }
+            std::cout << "Number of raw_verts: " << m_raw_verts.size() << std::endl;
+            std::cout << "Number of sphereIdx: " << sphereIdx << std::endl;
+        }
+
+    private:
+        void loadModel(std::string modelPath)
+        {
+            tinyobj::attrib_t                attrib;
+            std::vector<tinyobj::shape_t>    shapes;
+            std::vector<tinyobj::material_t> materials;
+            std::string                      warn, err;
+
+            if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, modelPath.c_str()))
+            {
+                std::cerr << warn + err << std::endl;
+                return;
+            }
+
+            const float scale = 0.2f;
+            for (const auto& shape : shapes)
+            {
+                for (const auto& index : shape.mesh.indices)
+                {
+                    Vertex vertex {};
+
+                    Vector3 pos = {attrib.vertices[3 * index.vertex_index + 0],
+                                   attrib.vertices[3 * index.vertex_index + 1],
+                                   attrib.vertices[3 * index.vertex_index + 2]};
+
+                    vertex.position   = Vector4(pos, 1.f) * scale;
+                    vertex.position.w = 1.f;
+                    vertex.color      = Vector4(glm::normalize(pos), 1.f);
+
+                    m_verts.push_back(vertex);
+                    m_indices.push_back(m_indices.size());
+                }
+            }
+
+            std::cout << "Model has " << m_verts.size() << "vertices." << std::endl;
+        }
+    };
+
+} // namespace Sirion
