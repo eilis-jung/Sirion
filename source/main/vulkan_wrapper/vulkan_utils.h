@@ -4,16 +4,16 @@
 #define STB_IMAGE_IMPLEMENTATION
 #define TINYOBJLOADER_IMPLEMENTATION
 
-#include <vulkan/vulkan.hpp>
 #include <GLFW/glfw3.h>
-#include <glm/glm.hpp>
-#include <glm/gtx/hash.hpp>
-#include <glm/gtc/matrix_transform.hpp>
 #include <chrono>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/hash.hpp>
 #include <optional>
-#include <vector>
-#include <tiny_obj_loader.h>
 #include <stb_image.h>
+#include <tiny_obj_loader.h>
+#include <vector>
+#include <vulkan/vulkan.hpp>
 
 #include "math/math.h"
 
@@ -96,4 +96,22 @@ namespace Sirion
         return attributeDescriptions;
     }
 
-}
+    namespace VulkanUtils
+    {
+        vk::UniqueShaderModule createShaderModule(vk::UniqueDevice&                 device,
+                                                  const std::vector<unsigned char>& shader_code)
+        {
+            try
+            {
+                return device->createShaderModuleUnique({vk::ShaderModuleCreateFlags(),
+                                                         shader_code.size(),
+                                                         reinterpret_cast<const uint32_t*>(shader_code.data())});
+            }
+            catch (vk::SystemError err)
+            {
+                throw std::runtime_error("failed to create shader module!");
+            }
+        }
+    } // namespace VulkanUtils
+
+} // namespace Sirion

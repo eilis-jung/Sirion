@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <glm/glm.hpp>
+#include <limits>
 #include <glm/gtc/matrix_transform.hpp>
 #include "base.h"
 
