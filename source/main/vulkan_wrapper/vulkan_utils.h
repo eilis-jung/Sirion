@@ -3,15 +3,13 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define STB_IMAGE_IMPLEMENTATION
 #define TINYOBJLOADER_IMPLEMENTATION
-
+#define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <chrono>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/hash.hpp>
 #include <optional>
-#include <stb_image.h>
-#include <tiny_obj_loader.h>
 #include <vector>
 #include <vulkan/vulkan.hpp>
 
@@ -25,93 +23,45 @@ namespace Sirion
     const bool enableValidationLayers = true;
 #endif
 
-    const std::vector<const char*> validationLayers = {"VK_LAYER_KHRONOS_validation"};
-
-    const std::vector<const char*> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
-
-    struct QueueFamilyIndices
-    {
-        std::optional<uint32_t> graphicsFamily;
-        std::optional<uint32_t> presentFamily;
-        std::optional<uint32_t> computeFamily;
-
-        bool isComplete()
-        {
-            return graphicsFamily.has_value() && presentFamily.has_value() && computeFamily.has_value();
-        }
-    };
-
-    struct SwapChainSupportDetails
-    {
-        vk::SurfaceCapabilitiesKHR        capabilities;
-        std::vector<vk::SurfaceFormatKHR> formats;
-        std::vector<vk::PresentModeKHR>   presentModes;
-    };
-
-    struct UniformBufferObject
-    {
-        alignas(16) glm::mat4 model;
-        alignas(16) glm::mat4 view;
-        alignas(16) glm::mat4 proj;
-    };
-
-    static vk::VertexInputBindingDescription getBindingDescription()
-    {
-        vk::VertexInputBindingDescription bindingDescription {};
-        bindingDescription.binding   = 0;
-        bindingDescription.stride    = sizeof(Vertex);
-        bindingDescription.inputRate = vk::VertexInputRate::eVertex;
-        return bindingDescription;
-    }
-
-    static std::array<vk::VertexInputAttributeDescription, 5> getAttributeDescriptions()
-    {
-        std::array<vk::VertexInputAttributeDescription, 5> attributeDescriptions {};
-
-        attributeDescriptions[0].binding  = 0;
-        attributeDescriptions[0].location = 0;
-        attributeDescriptions[0].format   = vk::Format::eR32G32B32Sfloat;
-        attributeDescriptions[0].offset   = offsetof(Vertex, position);
-
-        attributeDescriptions[1].binding  = 0;
-        attributeDescriptions[1].location = 1;
-        attributeDescriptions[1].format   = vk::Format::eR32G32B32Sfloat;
-        attributeDescriptions[1].offset   = offsetof(Vertex, velocity);
-
-        attributeDescriptions[2].binding  = 0;
-        attributeDescriptions[2].location = 2;
-        attributeDescriptions[2].format   = vk::Format::eR32G32B32Sfloat;
-        attributeDescriptions[2].offset   = offsetof(Vertex, attr1);
-
-        attributeDescriptions[3].binding  = 0;
-        attributeDescriptions[3].location = 3;
-        attributeDescriptions[3].format   = vk::Format::eR32G32B32Sfloat;
-        attributeDescriptions[3].offset   = offsetof(Vertex, attr2);
-
-        attributeDescriptions[4].binding  = 0;
-        attributeDescriptions[4].location = 4;
-        attributeDescriptions[4].format   = vk::Format::eR32G32B32Sfloat;
-        attributeDescriptions[4].offset   = offsetof(Vertex, color);
-
-        return attributeDescriptions;
-    }
-
     namespace VulkanUtils
     {
-        vk::UniqueShaderModule createShaderModule(vk::UniqueDevice&                 device,
-                                                  const std::vector<unsigned char>& shader_code)
+
+        const std::vector<const char*> validationLayers = {"VK_LAYER_KHRONOS_validation"};
+
+        const std::vector<const char*> deviceExtensions = {VK_KHR_SWAPCHAIN_EXTENSION_NAME};
+
+        struct QueueFamilyIndices
         {
-            try
+            std::optional<uint32_t> graphicsFamily;
+            std::optional<uint32_t> presentFamily;
+            std::optional<uint32_t> computeFamily;
+
+            bool isComplete()
             {
-                return device->createShaderModuleUnique({vk::ShaderModuleCreateFlags(),
-                                                         shader_code.size(),
-                                                         reinterpret_cast<const uint32_t*>(shader_code.data())});
+                return graphicsFamily.has_value() && presentFamily.has_value() && computeFamily.has_value();
             }
-            catch (vk::SystemError err)
-            {
-                throw std::runtime_error("failed to create shader module!");
-            }
-        }
+        };
+
+        struct SwapChainSupportDetails
+        {
+            vk::SurfaceCapabilitiesKHR        capabilities;
+            std::vector<vk::SurfaceFormatKHR> formats;
+            std::vector<vk::PresentModeKHR>   presentModes;
+        };
+
+        struct UniformBufferObject
+        {
+            alignas(16) glm::mat4 model;
+            alignas(16) glm::mat4 view;
+            alignas(16) glm::mat4 proj;
+        };
+
+        vk::VertexInputBindingDescription getBindingDescription();
+
+        std::array<vk::VertexInputAttributeDescription, 5> getAttributeDescriptions();
+
+        vk::UniqueShaderModule createShaderModule(vk::UniqueDevice&                 device,
+                                                  const std::vector<unsigned char>& shader_code);
     } // namespace VulkanUtils
 
 } // namespace Sirion

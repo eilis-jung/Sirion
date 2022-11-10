@@ -1,10 +1,8 @@
 #pragma once
-
+#define NOMINMAX // For using max() in numeric_limits
 #include <algorithm>
 #include <cmath>
 #include <limits>
-
-//#include <vulkan/vulkan.hpp>
 #include <glm/glm.hpp>
 
 namespace Sirion

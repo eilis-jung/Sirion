@@ -16,16 +16,16 @@ int main(int argc, char** argv) {
 #else
 #error Unknown Compiler
 #endif
-    try
-    {
-        Sirion::VulkanSpheresRenderer myRender;
-        myRender.run();
-    }
-    catch (const std::exception& e)
-    {
-        std::cerr << e.what() << std::endl;
-        return EXIT_FAILURE;
-    }
-	//Sirion::Scene scene;
+    //try
+    //{
+    //    Sirion::VulkanSpheresRenderer myRender;
+    //    myRender.run();
+    //}
+    //catch (const std::exception& e)
+    //{
+    //    std::cerr << e.what() << std::endl;
+    //    return EXIT_FAILURE;
+    //}
+	Sirion::Scene scene;
     return EXIT_SUCCESS;
 }

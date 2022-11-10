@@ -1,11 +1,184 @@
 #include "vulkan_instance.h"
+#include <stb_image.h>
+#include <tiny_obj_loader.h>
+//#include "vulkan_utils.h"
 
 namespace Sirion
 {
+    void
+    VulkanInstance::init(GLFWwindow* pWindow, std::shared_ptr<Particles> particles, std::shared_ptr<Physics> physics)
+    {
+        m_window = pWindow;
+        //m_particles = std::make_shared<Particles>(particles);
+        //m_physics   = std::make_shared<Physics>(physics);
+        createInstance();
+        createSurface();
+        pickPhysicalDevice();
+        createLogicalDevice();
+        createSwapChain();
+        createImageViews();
+        createRenderPass();
+        createDescriptorSetLayout();
+        createGraphicsPipeline();
+        createCommandPool();
+        createDepthResources();
+        createFramebuffers();
+        createTextureImage();
+        createTextureImageView();
+        createTextureSampler();
+        createVertexBuffers();
+        createIndexBuffer();
+        createNumVertsBuffer();
+        createCellVertArrayBuffer();
+        createCellVertCountBuffer();
+        createSphereVertsBuffer();
+        createComputePipeline(PHYSICSCOMPUTE_COMP, m_computePipelinePhysics);
+        createComputePipeline(FILLCELLVERTEXINFO_COMP, m_computePipelineFillCellVertex);
+        createComputePipeline(RESETCELLVERTEXINFO_COMP, m_computePipelineResetCellVertex);
+        createComputePipeline(SPHEREVERTEXCOMPUTE_COMP, m_computePipelineSphereVertex);
+        createuniformUboBuffers();
+        // Descriptor sets can't be created directly, they must be allocated from a pool like command buffers.
+        // Allocate one of these descriptors for every frame.
+        createDescriptorPool();
+        createDescriptorSets();
+        createCommandBuffers();
+        createSyncObjects();
+    }
+    void VulkanInstance::cleanup()
+    {
+        cleanupSwapChain();
+        m_device->destroyPipeline(m_computePipelinePhysics);
+        m_device->destroyPipeline(m_computePipelineFillCellVertex);
+        m_device->destroyPipeline(m_computePipelineResetCellVertex);
+        m_device->destroyPipeline(m_computePipelineSphereVertex);
+        m_device->destroyPipelineLayout(m_computePipelineLayout);
+        m_device->destroyDescriptorPool(m_computeDescriptorPool);
+        m_device->destroyDescriptorSetLayout(m_computeDescriptorSetLayout);
+
+        // The main texture image is used until the end of the program:
+        m_device->destroySampler(m_textureSampler);
+        m_device->destroyImageView(m_textureImageView);
+        m_device->destroyImage(m_textureImage);
+        m_device->freeMemory(m_textureImageMemory);
+        m_device->destroyBuffer(m_numVertsBuffer);
+        m_device->freeMemory(m_numVertsBufferMemory);
+        m_device->destroyBuffer(m_vertexBuffer1);
+        m_device->freeMemory(m_vertexBufferMemory1);
+        m_device->destroyBuffer(m_vertexBuffer2);
+        m_device->freeMemory(m_vertexBufferMemory2);
+        m_device->destroyBuffer(m_indexBuffer);
+        m_device->freeMemory(m_indexBufferMemory);
+        m_device->destroyBuffer(m_cellVertArrayBuffer);
+        m_device->freeMemory(m_cellVertArrayBufferMemory);
+        m_device->destroyBuffer(m_cellVertCountBuffer);
+        m_device->freeMemory(m_cellVertCountBufferMemory);
+        m_device->destroyBuffer(m_sphereVertsBuffer);
+        m_device->freeMemory(m_sphereVertsBufferMemory);
+
+        for (size_t i = 0; i < m_max_frames_in_flight; i++)
+        {
+            m_device->destroySemaphore(m_renderFinishedSemaphores[i]);
+            m_device->destroySemaphore(m_imageAvailableSemaphores[i]);
+            m_device->destroyFence(m_inFlightFences[i]);
+        }
+        m_device->destroyCommandPool(m_commandPool);
+        // surface is created by glfw, therefore not using a Unique handle
+        m_instance->destroySurfaceKHR(m_surface);
+
+        /*if (enableValidationLayers) {
+            DestroyDebugUtilsMessengerEXT(*instance, callback, nullptr);
+        }*/
+    }
+    void VulkanInstance::drawFrame()
+    {
+        m_device->waitForFences(1, &m_inFlightFences[m_currentFrame], VK_TRUE, std::numeric_limits<uint64_t>::max());
+
+        uint32_t imageIndex;
+        try
+        {
+            vk::ResultValue result = m_device->acquireNextImageKHR(
+                m_swapChain, std::numeric_limits<uint64_t>::max(), m_imageAvailableSemaphores[m_currentFrame], nullptr);
+            imageIndex = result.value;
+        }
+        catch (vk::OutOfDateKHRError err)
+        {
+            recreateSwapChain();
+            return;
+        }
+        catch (vk::SystemError err)
+        {
+            throw std::runtime_error("failed to acquire swap chain image!");
+        }
+
+        vk::DeviceSize bufferSize = static_cast<uint32_t>(m_particles->m_raw_verts.size() * sizeof(Vertex));
+        copyBuffer(m_vertexBuffer2, m_vertexBuffer1, bufferSize);
+        updateUniformBuffer(imageIndex);
+        vk::SubmitInfo submitInfo = {};
+
+        vk::Semaphore          waitSemaphores[] = {m_imageAvailableSemaphores[m_currentFrame]};
+        vk::PipelineStageFlags waitStages[]     = {vk::PipelineStageFlagBits::eColorAttachmentOutput};
+        submitInfo.waitSemaphoreCount           = 1;
+        submitInfo.pWaitSemaphores              = waitSemaphores;
+        submitInfo.pWaitDstStageMask            = waitStages;
+
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers    = &m_commandBuffers[imageIndex];
+
+        vk::Semaphore signalSemaphores[] = {m_renderFinishedSemaphores[m_currentFrame]};
+        submitInfo.signalSemaphoreCount  = 1;
+        submitInfo.pSignalSemaphores     = signalSemaphores;
+
+        m_device->resetFences(1, &m_inFlightFences[m_currentFrame]);
+
+        try
+        {
+            m_graphicsQueue.submit(submitInfo, m_inFlightFences[m_currentFrame]);
+        }
+        catch (vk::SystemError err)
+        {
+            throw std::runtime_error("failed to submit draw command buffer!");
+        }
+
+        vk::PresentInfoKHR presentInfo = {};
+        presentInfo.waitSemaphoreCount = 1;
+        presentInfo.pWaitSemaphores    = signalSemaphores;
+
+        vk::SwapchainKHR swapChains[] = {m_swapChain};
+        presentInfo.swapchainCount    = 1;
+        presentInfo.pSwapchains       = swapChains;
+        presentInfo.pImageIndices     = &imageIndex;
+
+        vk::Result resultPresent;
+        try
+        {
+            resultPresent = m_presentQueue.presentKHR(presentInfo);
+        }
+        catch (vk::OutOfDateKHRError err)
+        {
+            resultPresent = vk::Result::eErrorOutOfDateKHR;
+        }
+        catch (vk::SystemError err)
+        {
+            throw std::runtime_error("failed to present swap chain image!");
+        }
+
+        if (resultPresent == vk::Result::eSuboptimalKHR || resultPresent == vk::Result::eSuboptimalKHR ||
+            m_framebufferResized)
+        {
+            m_framebufferResized = false;
+            recreateSwapChain();
+            return;
+        }
+
+        m_currentFrame = (m_currentFrame + 1) % m_max_frames_in_flight;
+    }
+
+    void VulkanInstance::idle() { m_device->waitIdle(); }
+
     bool VulkanInstance::checkValidationLayerSupport()
     {
         auto availableLayers = vk::enumerateInstanceLayerProperties();
-        for (const char* layerName : validationLayers)
+        for (const char* layerName : VulkanUtils::validationLayers)
         {
             bool layerFound = false;
 
@@ -62,8 +235,8 @@ namespace Sirion
 
         if (enableValidationLayers)
         {
-            createInfo.enabledLayerCount   = static_cast<uint32_t>(validationLayers.size());
-            createInfo.ppEnabledLayerNames = validationLayers.data();
+            createInfo.enabledLayerCount   = static_cast<uint32_t>(VulkanUtils::validationLayers.size());
+            createInfo.ppEnabledLayerNames = VulkanUtils::validationLayers.data();
         }
 
         try
@@ -87,14 +260,14 @@ namespace Sirion
     }
     bool VulkanInstance::isDeviceSuitable(const vk::PhysicalDevice& device)
     {
-        QueueFamilyIndices indices = findQueueFamilies(device);
+        VulkanUtils::QueueFamilyIndices indices = findQueueFamilies(device);
 
         bool extensionsSupported = checkDeviceExtensionSupport(device);
 
         bool swapChainAdequate = false;
         if (extensionsSupported)
         {
-            SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device);
+            VulkanUtils::SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device);
             swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
         }
 
@@ -104,9 +277,9 @@ namespace Sirion
         return indices.isComplete() && extensionsSupported && swapChainAdequate && supportedFeatures.samplerAnisotropy;
     }
 
-    QueueFamilyIndices VulkanInstance::findQueueFamilies(vk::PhysicalDevice device)
+    VulkanUtils::QueueFamilyIndices VulkanInstance::findQueueFamilies(vk::PhysicalDevice device)
     {
-        QueueFamilyIndices indices;
+        VulkanUtils::QueueFamilyIndices indices;
 
         auto queueFamilies = device.getQueueFamilyProperties();
 
@@ -141,7 +314,8 @@ namespace Sirion
 
     bool VulkanInstance::checkDeviceExtensionSupport(const vk::PhysicalDevice& device)
     {
-        std::set<std::string> requiredExtensions(deviceExtensions.begin(), deviceExtensions.end());
+        std::set<std::string> requiredExtensions(VulkanUtils::deviceExtensions.begin(),
+                                                 VulkanUtils::deviceExtensions.end());
 
         for (const auto& extension : device.enumerateDeviceExtensionProperties())
         {
@@ -151,9 +325,9 @@ namespace Sirion
         return requiredExtensions.empty();
     }
 
-    SwapChainSupportDetails VulkanInstance::querySwapChainSupport(const vk::PhysicalDevice& device)
+    VulkanUtils::SwapChainSupportDetails VulkanInstance::querySwapChainSupport(const vk::PhysicalDevice& device)
     {
-        SwapChainSupportDetails details;
+        VulkanUtils::SwapChainSupportDetails details;
         details.capabilities = device.getSurfaceCapabilitiesKHR(m_surface);
         details.formats      = device.getSurfaceFormatsKHR(m_surface);
         details.presentModes = device.getSurfacePresentModesKHR(m_surface);
@@ -185,7 +359,7 @@ namespace Sirion
     }
     void VulkanInstance::createLogicalDevice()
     {
-        QueueFamilyIndices indices = findQueueFamilies(m_physicalDevice);
+        VulkanUtils::QueueFamilyIndices indices = findQueueFamilies(m_physicalDevice);
 
         std::vector<vk::DeviceQueueCreateInfo> queueCreateInfos;
         std::set<uint32_t>                     uniqueQueueFamilies = {
@@ -206,13 +380,13 @@ namespace Sirion
         auto createInfo                  = vk::DeviceCreateInfo(
             vk::DeviceCreateFlags(), static_cast<uint32_t>(queueCreateInfos.size()), queueCreateInfos.data());
         createInfo.pEnabledFeatures        = &deviceFeatures;
-        createInfo.enabledExtensionCount   = static_cast<uint32_t>(deviceExtensions.size());
-        createInfo.ppEnabledExtensionNames = deviceExtensions.data();
+        createInfo.enabledExtensionCount   = static_cast<uint32_t>(VulkanUtils::deviceExtensions.size());
+        createInfo.ppEnabledExtensionNames = VulkanUtils::deviceExtensions.data();
 
         if (enableValidationLayers)
         {
-            createInfo.enabledLayerCount   = static_cast<uint32_t>(validationLayers.size());
-            createInfo.ppEnabledLayerNames = validationLayers.data();
+            createInfo.enabledLayerCount   = static_cast<uint32_t>(VulkanUtils::validationLayers.size());
+            createInfo.ppEnabledLayerNames = VulkanUtils::validationLayers.data();
         }
 
         try
@@ -289,7 +463,7 @@ namespace Sirion
     }
     void VulkanInstance::createSwapChain()
     {
-        SwapChainSupportDetails swapChainSupport = querySwapChainSupport(m_physicalDevice);
+        VulkanUtils::SwapChainSupportDetails swapChainSupport = querySwapChainSupport(m_physicalDevice);
 
         vk::SurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
         vk::PresentModeKHR   presentMode   = chooseSwapPresentMode(swapChainSupport.presentModes);
@@ -310,7 +484,7 @@ namespace Sirion
                                               1, // imageArrayLayers
                                               vk::ImageUsageFlagBits::eColorAttachment);
 
-        QueueFamilyIndices indices              = findQueueFamilies(m_physicalDevice);
+        VulkanUtils::QueueFamilyIndices indices = findQueueFamilies(m_physicalDevice);
         uint32_t           queueFamilyIndices[] = {indices.graphicsFamily.value(), indices.presentFamily.value()};
 
         if (indices.graphicsFamily != indices.presentFamily)
@@ -549,8 +723,8 @@ namespace Sirion
         vertexInputInfo.vertexBindingDescriptionCount          = 0;
         vertexInputInfo.vertexAttributeDescriptionCount        = 0;
 
-        auto bindingDescription    = getBindingDescription();
-        auto attributeDescriptions = getAttributeDescriptions();
+        auto bindingDescription    = VulkanUtils::getBindingDescription();
+        auto attributeDescriptions = VulkanUtils::getAttributeDescriptions();
 
         vertexInputInfo.vertexBindingDescriptionCount   = 1;
         vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
@@ -662,7 +836,7 @@ namespace Sirion
 
     void VulkanInstance::createCommandPool()
     {
-        QueueFamilyIndices queueFamilyIndices = findQueueFamilies(m_physicalDevice);
+        VulkanUtils::QueueFamilyIndices queueFamilyIndices = findQueueFamilies(m_physicalDevice);
 
         vk::CommandPoolCreateInfo poolInfo = {};
         poolInfo.queueFamilyIndex          = queueFamilyIndices.graphicsFamily.value();
@@ -1094,7 +1268,7 @@ namespace Sirion
 
     void VulkanInstance::createVertexBuffers()
     {
-        vk::DeviceSize bufferSize = static_cast<uint32_t>(m_particles.m_raw_verts.size() * sizeof(Vertex));
+        vk::DeviceSize bufferSize = static_cast<uint32_t>(m_particles->m_raw_verts.size() * sizeof(Vertex));
         // vk::DeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
 
         vk::Buffer       stagingBuffer;
@@ -1106,7 +1280,7 @@ namespace Sirion
                      stagingBufferMemory);
 
         void* data = m_device->mapMemory(stagingBufferMemory, 0, bufferSize);
-        memcpy(data, m_particles.m_raw_verts.data(), (size_t)bufferSize);
+        memcpy(data, m_particles->m_raw_verts.data(), (size_t)bufferSize);
         m_device->unmapMemory(stagingBufferMemory);
 
         // Create buffer for the old vertices
@@ -1137,7 +1311,7 @@ namespace Sirion
     void VulkanInstance::createIndexBuffer()
     {
         vk::DeviceSize bufferSize =
-            static_cast<uint32_t>(m_particles.m_sphere_indices.size() * sizeof(m_particles.m_sphere_indices[0]));
+            static_cast<uint32_t>(m_particles->m_sphere_indices.size() * sizeof(m_particles->m_sphere_indices[0]));
         // vk::DeviceSize bufferSize = sizeof(indices[0]) * indices.size();;
 
         vk::Buffer       stagingBuffer;
@@ -1149,7 +1323,7 @@ namespace Sirion
                      stagingBufferMemory);
 
         void* data = m_device->mapMemory(stagingBufferMemory, 0, bufferSize);
-        memcpy(data, m_particles.m_sphere_indices.data(), (size_t)bufferSize);
+        memcpy(data, m_particles->m_sphere_indices.data(), (size_t)bufferSize);
         m_device->unmapMemory(stagingBufferMemory);
 
         createBuffer(bufferSize,
@@ -1176,7 +1350,7 @@ namespace Sirion
                      stagingBuffer,
                      stagingBufferMemory);
 
-        const int NUM_VERTS = m_particles.m_raw_verts.size();
+        const int NUM_VERTS = m_particles->m_raw_verts.size();
         void*     data      = m_device->mapMemory(stagingBufferMemory, 0, bufferSize);
         memcpy(data, &NUM_VERTS, (size_t)bufferSize);
         m_device->unmapMemory(stagingBufferMemory);
@@ -1198,7 +1372,7 @@ namespace Sirion
 
     void VulkanInstance::createCellVertArrayBuffer()
     {
-        vk::DeviceSize bufferSize = static_cast<uint32_t>(sizeof(int) * N_GRID_CELLS * 6);
+        vk::DeviceSize bufferSize = static_cast<uint32_t>(sizeof(int) * m_physics->m_numGridCells * 6);
         // vk::DeviceSize bufferSize = sizeof(indices[0]) * indices.size();;
 
         vk::Buffer       stagingBuffer;
@@ -1228,7 +1402,7 @@ namespace Sirion
 
     void VulkanInstance::createCellVertCountBuffer()
     {
-        vk::DeviceSize bufferSize = static_cast<uint32_t>(sizeof(int) * N_GRID_CELLS);
+        vk::DeviceSize bufferSize = static_cast<uint32_t>(sizeof(int) * m_physics->m_numGridCells);
         // vk::DeviceSize bufferSize = sizeof(indices[0]) * indices.size();;
 
         vk::Buffer       stagingBuffer;
@@ -1258,7 +1432,7 @@ namespace Sirion
 
     void VulkanInstance::createSphereVertsBuffer()
     {
-        vk::DeviceSize bufferSize = static_cast<uint32_t>(sizeof(Vertex) * m_particles.m_sphere_verts.size());
+        vk::DeviceSize bufferSize = static_cast<uint32_t>(sizeof(Vertex) * m_particles->m_sphere_verts.size());
 
         vk::Buffer       stagingBuffer;
         vk::DeviceMemory stagingBufferMemory;
@@ -1269,7 +1443,7 @@ namespace Sirion
                      stagingBufferMemory);
 
         void* data = m_device->mapMemory(stagingBufferMemory, 0, bufferSize);
-        memcpy(data, m_particles.m_sphere_verts.data(), (size_t)bufferSize);
+        memcpy(data, m_particles->m_sphere_verts.data(), (size_t)bufferSize);
         m_device->unmapMemory(stagingBufferMemory);
 
         createBuffer(bufferSize,
@@ -1285,10 +1459,9 @@ namespace Sirion
         m_device->freeMemory(stagingBufferMemory);
     }
 
-    void VulkanInstance::createComputePipeline(std::string computeShaderPath, vk::Pipeline& pipelineIdx)
+    void VulkanInstance::createComputePipeline(const std::vector<unsigned char>& shaderCode, vk::Pipeline& pipelineIdx)
     {
-        auto computeShaderCode   = readFile(computeShaderPath);
-        auto computeShaderModule = createShaderModule(computeShaderCode);
+        vk::UniqueShaderModule computeShaderModule = VulkanUtils::createShaderModule(m_device, shaderCode);
 
         vk::PipelineShaderStageCreateInfo computeShaderStageInfo = {};
         computeShaderStageInfo.flags                             = vk::PipelineShaderStageCreateFlags();
@@ -1403,7 +1576,7 @@ namespace Sirion
         vk::DescriptorBufferInfo computeBufferInfoVertices1 = {};
         computeBufferInfoVertices1.buffer                   = m_vertexBuffer1;
         computeBufferInfoVertices1.offset                   = 0;
-        computeBufferInfoVertices1.range                    = static_cast<uint32_t>(m_particles.m_raw_verts.size() * sizeof(Vertex));
+        computeBufferInfoVertices1.range                    = static_cast<uint32_t>(m_particles->m_raw_verts.size() * sizeof(Vertex));
 
         vk::WriteDescriptorSet writeComputeInfoVertices1 = {};
         writeComputeInfoVertices1.dstSet                 = m_computeDescriptorSet[0];
@@ -1417,7 +1590,7 @@ namespace Sirion
         vk::DescriptorBufferInfo computeBufferInfoVertices2 = {};
         computeBufferInfoVertices2.buffer                   = m_vertexBuffer2;
         computeBufferInfoVertices2.offset                   = 0;
-        computeBufferInfoVertices2.range = static_cast<uint32_t>(m_particles.m_raw_verts.size() * sizeof(Vertex));
+        computeBufferInfoVertices2.range = static_cast<uint32_t>(m_particles->m_raw_verts.size() * sizeof(Vertex));
 
         vk::WriteDescriptorSet writeComputeInfoVertices2 = {};
         writeComputeInfoVertices2.dstSet                 = m_computeDescriptorSet[0];
@@ -1431,7 +1604,7 @@ namespace Sirion
         vk::DescriptorBufferInfo computeBufferInfoCellVertexArray = {};
         computeBufferInfoCellVertexArray.buffer                   = m_cellVertArrayBuffer;
         computeBufferInfoCellVertexArray.offset                   = 0;
-        computeBufferInfoCellVertexArray.range = static_cast<uint32_t>(N_GRID_CELLS * 6 * sizeof(int));
+        computeBufferInfoCellVertexArray.range = static_cast<uint32_t>(m_physics->m_numGridCells * 6 * sizeof(int));
 
         vk::WriteDescriptorSet writeComputeInfoCellVertexArray = {};
         writeComputeInfoCellVertexArray.dstSet                 = m_computeDescriptorSet[0];
@@ -1445,7 +1618,7 @@ namespace Sirion
         vk::DescriptorBufferInfo computeBufferInfoCellVertexCount = {};
         computeBufferInfoCellVertexCount.buffer                   = m_cellVertCountBuffer;
         computeBufferInfoCellVertexCount.offset                   = 0;
-        computeBufferInfoCellVertexCount.range                    = static_cast<uint32_t>(N_GRID_CELLS * sizeof(int));
+        computeBufferInfoCellVertexCount.range = static_cast<uint32_t>(m_physics->m_numGridCells * sizeof(int));
 
         vk::WriteDescriptorSet writeComputeInfoCellVertexCount = {};
         writeComputeInfoCellVertexCount.dstSet                 = m_computeDescriptorSet[0];
@@ -1473,7 +1646,7 @@ namespace Sirion
         vk::DescriptorBufferInfo computeBufferInfoSphereVerts = {};
         computeBufferInfoSphereVerts.buffer                   = m_sphereVertsBuffer;
         computeBufferInfoSphereVerts.offset                   = 0;
-        computeBufferInfoSphereVerts.range = static_cast<uint32_t>(sizeof(Vertex) * m_particles.m_sphere_verts.size());
+        computeBufferInfoSphereVerts.range = static_cast<uint32_t>(sizeof(Vertex) * m_particles->m_sphere_verts.size());
 
         vk::WriteDescriptorSet writeComputeInfoSphereVerts = {};
         writeComputeInfoSphereVerts.dstSet                 = m_computeDescriptorSet[0];
@@ -1523,6 +1696,433 @@ namespace Sirion
             throw std::runtime_error("failed to create compute pipeline!");
         }
     }
+
+    void VulkanInstance::createuniformUboBuffers()
+    {
+        vk::DeviceSize bufferSize = static_cast<uint32_t>(sizeof(VulkanUtils::UniformBufferObject));
+
+        m_uniformUboBuffers.resize(m_swapChainImages.size());
+        m_uniformUboBuffersMemory.resize(m_swapChainImages.size());
+
+        for (size_t i = 0; i < m_swapChainImages.size(); i++)
+        {
+            createBuffer(bufferSize,
+                         vk::BufferUsageFlagBits::eUniformBuffer,
+                         vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
+                         m_uniformUboBuffers[i],
+                         m_uniformUboBuffersMemory[i]);
+        }
+    }
+
+    void VulkanInstance::createDescriptorPool()
+    {
+        std::array<vk::DescriptorPoolSize, 2> descriptorPoolSizes {};
+        descriptorPoolSizes[0].type            = vk::DescriptorType::eUniformBuffer;
+        descriptorPoolSizes[0].descriptorCount = static_cast<uint32_t>(m_swapChainImages.size());
+        // For the allocation of the combined image sampler
+        descriptorPoolSizes[1].type            = vk::DescriptorType::eCombinedImageSampler;
+        descriptorPoolSizes[1].descriptorCount = static_cast<uint32_t>(m_swapChainImages.size());
+
+        vk::DescriptorPoolCreateInfo poolInfo {};
+        poolInfo.poolSizeCount = static_cast<uint32_t>(descriptorPoolSizes.size());
+        poolInfo.pPoolSizes    = descriptorPoolSizes.data();
+
+        // Specify the maximum number of descriptor sets that may be allocated
+        poolInfo.maxSets = static_cast<uint32_t>(m_swapChainImages.size());
+
+        try
+        {
+            m_descriptorPool = m_device->createDescriptorPool(poolInfo);
+        }
+        catch (vk::SystemError err)
+        {
+            throw std::runtime_error("failed to create descriptor pool!");
+        }
+    }
+
+    void VulkanInstance::createDescriptorSets()
+    {
+        std::vector<vk::DescriptorSetLayout> layouts(m_swapChainImages.size(), m_descriptorSetLayout);
+        vk::DescriptorSetAllocateInfo        allocInfo {};
+        allocInfo.descriptorPool     = m_descriptorPool;
+        allocInfo.descriptorSetCount = static_cast<uint32_t>(m_swapChainImages.size());
+        allocInfo.pSetLayouts        = layouts.data();
+
+        m_descriptorSets.resize(m_swapChainImages.size());
+        try
+        {
+            m_descriptorSets = m_device->allocateDescriptorSets(allocInfo);
+        }
+        catch (vk::SystemError err)
+        {
+            throw std::runtime_error("failed to allocate descriptor sets!");
+        }
+
+        for (size_t i = 0; i < m_swapChainImages.size(); i++)
+        {
+            vk::DescriptorBufferInfo bufferInfo {};
+            bufferInfo.buffer = m_uniformUboBuffers[i];
+            bufferInfo.offset = 0;
+            bufferInfo.range  = sizeof(VulkanUtils::UniformBufferObject);
+
+            // The resources for a combined image sampler structure must be specified in a vk::DescriptorImageInfo
+            // struct
+            vk::DescriptorImageInfo imageInfo {};
+            imageInfo.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+            imageInfo.imageView   = m_textureImageView;
+            imageInfo.sampler     = m_textureSampler;
+
+            std::array<vk::WriteDescriptorSet, 2> descriptorWrites {};
+            descriptorWrites[0].dstSet = m_descriptorSets[i];
+            // Give our uniform buffer binding index 0
+            descriptorWrites[0].dstBinding = 0;
+            // Specify the first index in the array of descriptors that we want to update.
+            descriptorWrites[0].dstArrayElement = 0;
+            descriptorWrites[0].descriptorType  = vk::DescriptorType::eUniformBuffer;
+            // Specify how many array elements you want to update.
+            descriptorWrites[0].descriptorCount = 1;
+            descriptorWrites[0].pBufferInfo     = &bufferInfo;
+
+            descriptorWrites[1].dstSet          = m_descriptorSets[i];
+            descriptorWrites[1].dstBinding      = 1;
+            descriptorWrites[1].dstArrayElement = 0;
+            descriptorWrites[1].descriptorType  = vk::DescriptorType::eCombinedImageSampler;
+            descriptorWrites[1].descriptorCount = 1;
+            descriptorWrites[1].pImageInfo      = &imageInfo;
+
+            m_device->updateDescriptorSets(
+                static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+        }
+    }
+
+    void VulkanInstance::createCommandBuffers()
+    {
+        VulkanUtils::QueueFamilyIndices queueFamilyIndices = findQueueFamilies(m_physicalDevice);
+        m_commandBuffers.resize(m_swapChainFramebuffers.size());
+
+        vk::CommandBufferAllocateInfo allocInfo = {};
+        allocInfo.commandPool                   = m_commandPool;
+        allocInfo.level                         = vk::CommandBufferLevel::ePrimary;
+        allocInfo.commandBufferCount            = (uint32_t)m_commandBuffers.size();
+
+        try
+        {
+            m_commandBuffers = m_device->allocateCommandBuffers(allocInfo);
+        }
+        catch (vk::SystemError err)
+        {
+            throw std::runtime_error("failed to allocate command buffers!");
+        }
+
+        for (size_t i = 0; i < m_commandBuffers.size(); i++)
+        {
+            vk::CommandBufferBeginInfo beginInfo = {};
+            beginInfo.flags                      = vk::CommandBufferUsageFlagBits::eSimultaneousUse;
+
+            try
+            {
+                m_commandBuffers[i].begin(beginInfo);
+            }
+            catch (vk::SystemError err)
+            {
+                throw std::runtime_error("failed to begin recording command buffer!");
+            }
+
+            vk::RenderPassBeginInfo renderPassInfo = {};
+            renderPassInfo.renderPass              = m_renderPass;
+            renderPassInfo.framebuffer             = m_swapChainFramebuffers[i];
+            renderPassInfo.renderArea.offset       = vk::Offset2D {0, 0};
+            renderPassInfo.renderArea.extent       = m_swapChainExtent;
+
+            std::array<vk::ClearValue, 2> clearValues {};
+            clearValues[0].color           = std::array<float, 4> {0.0f, 0.0f, 0.0f, 1.0f};
+            clearValues[1].depthStencil    = vk::ClearDepthStencilValue {1.0f, 0};
+            renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+            renderPassInfo.pClearValues    = clearValues.data();
+
+            // Bind the compute pipeline
+            // vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipelinePhysics);
+            m_commandBuffers[i].bindPipeline(vk::PipelineBindPoint::eCompute, m_computePipelineResetCellVertex);
+
+            // Bind descriptor sets for compute
+            // vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0,
+            // 1, &ComputeDescriptorSet, 0, nullptr);
+            m_commandBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eCompute,
+                                                 m_computePipelineLayout,
+                                                 0,
+                                                 1,
+                                                   m_computeDescriptorSet.data(),
+                                                 0,
+                                                 nullptr);
+
+            // Dispatch the compute kernel, with one thread for each vertex
+            m_commandBuffers[i].dispatch(m_physics->m_numGridCells, 1, 1);
+
+            vk::BufferMemoryBarrier computeToComputeBarrier = {};
+            computeToComputeBarrier.srcAccessMask = vk::AccessFlagBits::eShaderWrite | vk::AccessFlagBits::eShaderRead;
+            computeToComputeBarrier.dstAccessMask = vk::AccessFlagBits::eShaderWrite | vk::AccessFlagBits::eShaderRead;
+            computeToComputeBarrier.srcQueueFamilyIndex = queueFamilyIndices.computeFamily.value();
+            computeToComputeBarrier.dstQueueFamilyIndex = queueFamilyIndices.computeFamily.value();
+            computeToComputeBarrier.buffer              = m_cellVertCountBuffer;
+            computeToComputeBarrier.offset              = 0;
+            computeToComputeBarrier.size                = m_physics->m_numGridCells * sizeof(int);
+
+            vk::PipelineStageFlags computeShaderStageFlags_1(vk::PipelineStageFlagBits::eComputeShader);
+            vk::PipelineStageFlags computeShaderStageFlags_2(vk::PipelineStageFlagBits::eComputeShader);
+            m_commandBuffers[i].pipelineBarrier(computeShaderStageFlags_1,
+                                              computeShaderStageFlags_2,
+                                              vk::DependencyFlags(),
+                                              0,
+                                              nullptr,
+                                              1,
+                                              &computeToComputeBarrier,
+                                              0,
+                                              nullptr);
+
+            // Bind the compute pipeline
+            // vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipelinePhysics);
+            m_commandBuffers[i].bindPipeline(vk::PipelineBindPoint::eCompute, m_computePipelineFillCellVertex);
+
+            // Bind descriptor sets for compute
+            // vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0,
+            // 1, &ComputeDescriptorSet, 0, nullptr);
+            m_commandBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eCompute,
+                                                 m_computePipelineLayout,
+                                                 0,
+                                                 1,
+                                                   m_computeDescriptorSet.data(),
+                                                 0,
+                                                 nullptr);
+
+            // Dispatch the compute kernel, with one thread for each vertex
+            m_commandBuffers[i].dispatch(uint32_t(m_particles->m_raw_verts.size()), 1, 1);
+
+            vk::BufferMemoryBarrier computeToComputeBarrier1 = {};
+            computeToComputeBarrier1.srcAccessMask = vk::AccessFlagBits::eShaderWrite | vk::AccessFlagBits::eShaderRead;
+            computeToComputeBarrier1.dstAccessMask = vk::AccessFlagBits::eShaderWrite | vk::AccessFlagBits::eShaderRead;
+            computeToComputeBarrier1.srcQueueFamilyIndex = queueFamilyIndices.computeFamily.value();
+            computeToComputeBarrier1.dstQueueFamilyIndex = queueFamilyIndices.computeFamily.value();
+            computeToComputeBarrier1.buffer              = m_cellVertCountBuffer;
+            computeToComputeBarrier1.offset              = 0;
+            computeToComputeBarrier1.size                = m_physics->m_numGridCells * sizeof(int); // vertexBufferSize
+
+            vk::PipelineStageFlags computeShaderStageFlags_3(vk::PipelineStageFlagBits::eComputeShader);
+            vk::PipelineStageFlags computeShaderStageFlags_4(vk::PipelineStageFlagBits::eComputeShader);
+            m_commandBuffers[i].pipelineBarrier(computeShaderStageFlags_3,
+                                              computeShaderStageFlags_4,
+                                              vk::DependencyFlags(),
+                                              0,
+                                              nullptr,
+                                              1,
+                                              &computeToComputeBarrier1,
+                                              0,
+                                              nullptr);
+
+            // Bind the compute pipeline
+            // vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipelinePhysics);
+            m_commandBuffers[i].bindPipeline(vk::PipelineBindPoint::eCompute, m_computePipelinePhysics);
+
+            // Bind descriptor sets for compute
+            // vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0,
+            // 1, &ComputeDescriptorSet, 0, nullptr);
+            m_commandBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eCompute,
+                                                 m_computePipelineLayout,
+                                                 0,
+                                                 1,
+                                                 m_computeDescriptorSet.data(),
+                                                 0,
+                                                 nullptr);
+
+            // Dispatch the compute kernel, with one thread for each vertex
+            m_commandBuffers[i].dispatch(uint32_t(m_particles->m_raw_verts.size()), 1, 1);
+
+            vk::BufferMemoryBarrier computeToComputeBarrier2 = {};
+            computeToComputeBarrier2.srcAccessMask = vk::AccessFlagBits::eShaderWrite | vk::AccessFlagBits::eShaderRead;
+            computeToComputeBarrier2.dstAccessMask = vk::AccessFlagBits::eShaderWrite | vk::AccessFlagBits::eShaderRead;
+            computeToComputeBarrier2.srcQueueFamilyIndex = queueFamilyIndices.computeFamily.value();
+            computeToComputeBarrier2.dstQueueFamilyIndex = queueFamilyIndices.computeFamily.value();
+            computeToComputeBarrier2.buffer              = m_vertexBuffer2;
+            computeToComputeBarrier2.offset              = 0;
+            computeToComputeBarrier2.size =
+                uint32_t(m_particles->m_raw_verts.size()) * sizeof(Vertex); // vertexBufferSize
+
+            vk::PipelineStageFlags computeShaderStageFlags_5(vk::PipelineStageFlagBits::eComputeShader);
+            vk::PipelineStageFlags computeShaderStageFlags_6(vk::PipelineStageFlagBits::eComputeShader);
+            m_commandBuffers[i].pipelineBarrier(computeShaderStageFlags_5,
+                                              computeShaderStageFlags_6,
+                                              vk::DependencyFlags(),
+                                              0,
+                                              nullptr,
+                                              1,
+                                              &computeToComputeBarrier2,
+                                              0,
+                                              nullptr);
+
+            // Bind the compute pipeline
+            // vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipelinePhysics);
+            m_commandBuffers[i].bindPipeline(vk::PipelineBindPoint::eCompute, m_computePipelineSphereVertex);
+
+            // Bind descriptor sets for compute
+            // vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0,
+            // 1, &ComputeDescriptorSet, 0, nullptr);
+            m_commandBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eCompute,
+                                                 m_computePipelineLayout,
+                                                 0,
+                                                 1,
+                                                 m_computeDescriptorSet.data(),
+                                                 0,
+                                                 nullptr);
+
+            // Dispatch the compute kernel, with one thread for each vertex
+            m_commandBuffers[i].dispatch(uint32_t(m_particles->m_sphere_verts.size()), 1, 1);
+
+            // Define a memory barrier to transition the vertex buffer from a compute storage object to a vertex
+            // input
+            vk::BufferMemoryBarrier computeToVertexBarrier = {};
+            computeToVertexBarrier.srcAccessMask = vk::AccessFlagBits::eShaderWrite | vk::AccessFlagBits::eShaderRead;
+            computeToVertexBarrier.dstAccessMask = vk::AccessFlagBits::eVertexAttributeRead;
+            computeToVertexBarrier.srcQueueFamilyIndex = queueFamilyIndices.computeFamily.value();
+            computeToVertexBarrier.dstQueueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
+            computeToVertexBarrier.buffer              = m_sphereVertsBuffer;
+            computeToVertexBarrier.offset              = 0;
+            computeToVertexBarrier.size =
+                uint32_t(m_particles->m_sphere_verts.size()) * sizeof(Vertex); // vertexBufferSize
+
+            vk::PipelineStageFlags computeShaderStageFlags(vk::PipelineStageFlagBits::eComputeShader);
+            vk::PipelineStageFlags vertexShaderStageFlags(vk::PipelineStageFlagBits::eVertexInput);
+            m_commandBuffers[i].pipelineBarrier(computeShaderStageFlags,
+                                              vertexShaderStageFlags,
+                                              vk::DependencyFlags(),
+                                              0,
+                                              nullptr,
+                                              1,
+                                              &computeToVertexBarrier,
+                                              0,
+                                              nullptr);
+
+            m_commandBuffers[i].beginRenderPass(renderPassInfo, vk::SubpassContents::eInline);
+            m_commandBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, m_graphicsPipeline);
+
+            vk::Buffer     vertexBuffers[] = {m_sphereVertsBuffer};
+            vk::DeviceSize offsets[]       = {0};
+            m_commandBuffers[i].bindVertexBuffers(0, 1, vertexBuffers, offsets);
+            m_commandBuffers[i].bindIndexBuffer(m_indexBuffer, 0, vk::IndexType::eUint32);
+
+            m_commandBuffers[i].bindDescriptorSets(
+                vk::PipelineBindPoint::eGraphics, m_pipelineLayout, 0, 1, &m_descriptorSets[i], 0, nullptr);
+            m_commandBuffers[i].drawIndexed(
+                static_cast<uint32_t>(uint32_t(m_particles->m_sphere_indices.size())), 1, 0, 0, 0);
+
+            m_commandBuffers[i].endRenderPass();
+
+            try
+            {
+                m_commandBuffers[i].end();
+            }
+            catch (vk::SystemError err)
+            {
+                throw std::runtime_error("failed to record command buffer!");
+            }
+        }
+    }
+
+    void VulkanInstance::createSyncObjects()
+    {
+        m_imageAvailableSemaphores.resize(m_max_frames_in_flight);
+        m_renderFinishedSemaphores.resize(m_max_frames_in_flight);
+        m_inFlightFences.resize(m_max_frames_in_flight);
+
+        try
+        {
+            for (size_t i = 0; i < m_max_frames_in_flight; i++)
+            {
+                m_imageAvailableSemaphores[i] = m_device->createSemaphore({});
+                m_renderFinishedSemaphores[i] = m_device->createSemaphore({});
+                m_inFlightFences[i]           = m_device->createFence({vk::FenceCreateFlagBits::eSignaled});
+            }
+        }
+        catch (vk::SystemError err)
+        {
+            throw std::runtime_error("failed to create synchronization objects for a frame!");
+        }
+    }
+
+    void VulkanInstance::cleanupSwapChain()
+    {
+        m_device->destroyImageView(m_depthImageView);
+        m_device->destroyImage(m_depthImage);
+        m_device->freeMemory(m_depthImageMemory);
+
+        for (auto framebuffer : m_swapChainFramebuffers)
+        {
+            m_device->destroyFramebuffer(framebuffer);
+        }
+
+        m_device->freeCommandBuffers(m_commandPool, m_commandBuffers);
+
+        m_device->destroyPipeline(m_graphicsPipeline);
+        m_device->destroyPipelineLayout(m_pipelineLayout);
+        m_device->destroyRenderPass(m_renderPass);
+
+        for (auto imageView : m_swapChainImageViews)
+        {
+            m_device->destroyImageView(imageView);
+        }
+
+        for (size_t i = 0; i < m_swapChainImages.size(); i++)
+        {
+            m_device->destroyBuffer(m_uniformUboBuffers[i]);
+            m_device->freeMemory(m_uniformUboBuffersMemory[i]);
+        }
+
+        m_device->destroyDescriptorPool(m_descriptorPool);
+        m_device->destroySwapchainKHR(m_swapChain);
+    }
+
+    void VulkanInstance::recreateSwapChain()
+    {
+        int width = 0, height = 0;
+        while (width == 0 || height == 0)
+        {
+            glfwGetFramebufferSize(m_window, &width, &height);
+            glfwWaitEvents();
+        }
+
+        m_device->waitIdle();
+
+        cleanupSwapChain();
+
+        createSwapChain();
+        createImageViews();
+        createRenderPass();
+        createGraphicsPipeline();
+        createDepthResources();
+        createFramebuffers();
+        createuniformUboBuffers();
+        createDescriptorPool();
+        createDescriptorSets();
+        createCommandBuffers();
+    }
+
+    void VulkanInstance::updateUniformBuffer(uint32_t currentImage)
+    {
+        static auto startTime   = std::chrono::high_resolution_clock::now();
+        auto        currentTime = std::chrono::high_resolution_clock::now();
+        float       time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+
+        VulkanUtils::UniformBufferObject ubo {};
+        ubo.model = Matrix4(1.f);
+        ubo.view  = m_physics->m_viewMat;
+        ubo.proj  = m_physics->getProjectionMatrix(m_swapChainExtent.width, m_swapChainExtent.height);
+
+        void* data = m_device->mapMemory(m_uniformUboBuffersMemory[currentImage], 0, sizeof(ubo));
+        memcpy(data, &ubo, sizeof(ubo));
+        m_device->unmapMemory(m_uniformUboBuffersMemory[currentImage]);
+    }
+
+
+
+
 
 
 

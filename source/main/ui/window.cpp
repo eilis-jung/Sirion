@@ -56,13 +56,13 @@ namespace Sirion
             float delta_y = static_cast<float>((m_prev_y - pos_y) * m_mouse_sensitivity);
             m_prev_x      = pos_x;
             m_prev_y      = pos_y;
-            Physics::updateOrbit(delta_x, delta_y, 0.0f);
+            //m_vulkanInstance.m_physics->updateOrbit(delta_x, delta_y, 0.0f);
         }
         else if (m_mouse_right_down)
         {
             float delta_z = static_cast<float>((m_prev_y - pos_y) * 0.05f);
             m_prev_y      = pos_y;
-            Physics::updateOrbit(0.0f, 0.0f, delta_z);
+            //m_vulkanInstance.m_physics->updateOrbit(0.0f, 0.0f, delta_z);
         }
     }
     void Sirion::Window::framebufferResizeCallback(GLFWwindow* window, int width, int height)

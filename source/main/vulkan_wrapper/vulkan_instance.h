@@ -12,47 +12,36 @@
 #include <stdexcept>
 #include <vector>
 
-#include "particles/particle_generator.h"
+#include "particles/particles.h"
+#include "physics/base.h"
 #include "vulkan_utils.h"
 
+#include "shader/generated/include/fillCellVertexInfo_comp.h"
+#include "shader/generated/include/physicsCompute_comp.h"
+#include "shader/generated/include/resetCellVertexInfo_comp.h"
 #include "shader/generated/include/shader_frag.h"
 #include "shader/generated/include/shader_vert.h"
+#include "shader/generated/include/sphereVertexCompute_comp.h"
 
 namespace Sirion
 {
     class VulkanInstance
     {
     public:
-        void init()
-        {
-            createInstance();
-            createSurface();
-            pickPhysicalDevice();
-            createLogicalDevice();
-            createSwapChain();
-            createImageViews();
-            createRenderPass();
-            createDescriptorSetLayout();
-            createGraphicsPipeline();
-            createCommandPool();
-            createDepthResources();
-            createFramebuffers();
-            createTextureImage();
-            createTextureImageView();
-            createTextureSampler();
-            createVertexBuffers();
-            createIndexBuffer();
-            createNumVertsBuffer();
-            createCellVertArrayBuffer();
-            createCellVertCountBuffer();
-            createSphereVertsBuffer();
-        };
+        VulkanInstance() {}
+        void init(GLFWwindow* pWindow, std::shared_ptr<Particles> particles, std::shared_ptr<Physics> physics);
+        void cleanup();
+        void drawFrame();
+        void idle();
+        std::shared_ptr<Physics> getPhysics() { return m_physics; }
 
     private:
-        std::string m_texture_path = "";
+        std::string m_texture_path = "../../../asset/images/viking_room.png";
         GLFWwindow* m_window;
-        Particles   m_particles;
+        int         m_max_frames_in_flight = 2;
 
+        std::shared_ptr<Particles>   m_particles;
+        std::shared_ptr<Physics>     m_physics;
         vk::UniqueInstance           m_instance;
         vk::SurfaceKHR               m_surface;
         vk::PhysicalDevice           m_physicalDevice;
@@ -89,11 +78,11 @@ namespace Sirion
         vk::Buffer                   m_cellVertCountBuffer;
         vk::DeviceMemory             m_cellVertCountBufferMemory;
 
-        int* m_cellVertArray = new int[N_GRID_CELLS * 6] {0};
-        int* m_cellVertCount = new int[N_GRID_CELLS] {0};
+        int* m_cellVertArray = new int[m_physics->m_numGridCells * 6] {0};
+        int* m_cellVertCount = new int[m_physics->m_numGridCells] {0};
 
-        vk::Buffer                   m_sphereVertsBuffer;
-        vk::DeviceMemory             m_sphereVertsBufferMemory;
+        vk::Buffer       m_sphereVertsBuffer;
+        vk::DeviceMemory m_sphereVertsBufferMemory;
 
         vk::Buffer       m_indexBuffer;
         vk::DeviceMemory m_indexBufferMemory;
@@ -108,7 +97,8 @@ namespace Sirion
         std::vector<vk::Semaphore> m_imageAvailableSemaphores;
         std::vector<vk::Semaphore> m_renderFinishedSemaphores;
         std::vector<vk::Fence>     m_inFlightFences;
-        size_t                     m_currentFrame = 0;
+        size_t                     m_currentFrame       = 0;
+        bool                       m_framebufferResized = false;
 
         // for compute pipeline
         vk::PipelineLayout             m_computePipelineLayout;
@@ -120,20 +110,20 @@ namespace Sirion
         vk::DescriptorPool             m_computeDescriptorPool;
         std::vector<vk::DescriptorSet> m_computeDescriptorSet;
 
-        bool                     checkValidationLayerSupport();
-        std::vector<const char*> getRequiredExtensions();
-        void                     createInstance();
-        void                     createSurface();
-        bool                     isDeviceSuitable(const vk::PhysicalDevice& device);
-        QueueFamilyIndices       findQueueFamilies(vk::PhysicalDevice device);
-        bool                     checkDeviceExtensionSupport(const vk::PhysicalDevice& device);
-        SwapChainSupportDetails  querySwapChainSupport(const vk::PhysicalDevice& device);
-        void                     pickPhysicalDevice();
-        void                     createLogicalDevice();
-        vk::SurfaceFormatKHR     chooseSwapSurfaceFormat(const std::vector<vk::SurfaceFormatKHR>& availableFormats);
-        vk::PresentModeKHR       chooseSwapPresentMode(const std::vector<vk::PresentModeKHR> availablePresentModes);
-        vk::Extent2D             chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities);
-        void                     createSwapChain();
+        bool                                 checkValidationLayerSupport();
+        std::vector<const char*>             getRequiredExtensions();
+        void                                 createInstance();
+        void                                 createSurface();
+        bool                                 isDeviceSuitable(const vk::PhysicalDevice& device);
+        VulkanUtils::QueueFamilyIndices      findQueueFamilies(vk::PhysicalDevice device);
+        bool                                 checkDeviceExtensionSupport(const vk::PhysicalDevice& device);
+        VulkanUtils::SwapChainSupportDetails querySwapChainSupport(const vk::PhysicalDevice& device);
+        void                                 pickPhysicalDevice();
+        void                                 createLogicalDevice();
+        vk::SurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<vk::SurfaceFormatKHR>& availableFormats);
+        vk::PresentModeKHR   chooseSwapPresentMode(const std::vector<vk::PresentModeKHR> availablePresentModes);
+        vk::Extent2D         chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities);
+        void                 createSwapChain();
         vk::ImageView
                    createImageView(vk::Image            image,
                                    vk::Format           format,
@@ -178,6 +168,14 @@ namespace Sirion
         void              createCellVertArrayBuffer();
         void              createCellVertCountBuffer();
         void              createSphereVertsBuffer();
-        void              createComputePipeline(std::string computeShaderPath, vk::Pipeline& pipelineIdx);
+        void createComputePipeline(const std::vector<unsigned char>& shaderCode, vk::Pipeline& pipelineIdx);
+        void createuniformUboBuffers();
+        void createDescriptorPool();
+        void createDescriptorSets();
+        void createCommandBuffers();
+        void createSyncObjects();
+        void cleanupSwapChain();
+        void recreateSwapChain();
+        void updateUniformBuffer(uint32_t currentImage);
     };
 } // namespace Sirion
