@@ -29,10 +29,11 @@ namespace Sirion
             init();
         }
 
-        void init() { 
-            m_current_application = std::make_shared<Application>();
-            std::shared_ptr<Application> temp(m_current_application);
-            ComponentManager::getInstance().add(temp);
+        void init() {
+            ApplicationFactory applicationFactory;
+            m_current_application = std::static_pointer_cast<Application>(applicationFactory.create());
+            //m_current_application = std::make_shared<Application>(3);
+            ComponentManager::getInstance().add(m_current_application);
             m_current_application->run();
         }
         std::weak_ptr<Application> getCurrentApplication() const { 

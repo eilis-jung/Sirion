@@ -13,15 +13,10 @@
 #include <vector>
 
 #include "particles/particles.h"
+#include "shader/generated/all.h"
 #include "physics/base.h"
 #include "vulkan_utils.h"
 
-#include "shader/generated/include/fillCellVertexInfo_comp.h"
-#include "shader/generated/include/physicsCompute_comp.h"
-#include "shader/generated/include/resetCellVertexInfo_comp.h"
-#include "shader/generated/include/shader_frag.h"
-#include "shader/generated/include/shader_vert.h"
-#include "shader/generated/include/sphereVertexCompute_comp.h"
 
 namespace Sirion
 {

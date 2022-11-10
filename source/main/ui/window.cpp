@@ -1,4 +1,5 @@
 #include "window.h"
+#include "main/application/application.h"
 namespace Sirion
 {
     bool   Sirion::Window::m_mouse_left_down   = false;
@@ -50,19 +51,23 @@ namespace Sirion
 
     void Sirion::Window::mouseMoveCallback(GLFWwindow* window, double pos_x, double pos_y)
     {
+        auto                         component  = ComponentManager::getInstance().get(1);
+        std::shared_ptr<Application> app       = std::static_pointer_cast<Application>(component);
         if (m_mouse_left_down)
         {
             float delta_x = static_cast<float>((m_prev_x - pos_x) * m_mouse_sensitivity);
             float delta_y = static_cast<float>((m_prev_y - pos_y) * m_mouse_sensitivity);
-            m_prev_x      = pos_x;
-            m_prev_y      = pos_y;
-            //m_vulkanInstance.m_physics->updateOrbit(delta_x, delta_y, 0.0f);
+
+            m_prev_x = pos_x;
+            m_prev_y = pos_y;
+            
+            app->m_physics.updateOrbit(delta_x, delta_y, 0.0f);
         }
         else if (m_mouse_right_down)
         {
             float delta_z = static_cast<float>((m_prev_y - pos_y) * 0.05f);
             m_prev_y      = pos_y;
-            //m_vulkanInstance.m_physics->updateOrbit(0.0f, 0.0f, delta_z);
+            app->m_physics.updateOrbit(0.0f, 0.0f, delta_z);
         }
     }
     void Sirion::Window::framebufferResizeCallback(GLFWwindow* window, int width, int height)

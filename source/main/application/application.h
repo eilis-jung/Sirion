@@ -20,12 +20,10 @@ namespace Sirion
     protected:
         ApplicationConfig       m_application_config;
         std::shared_ptr<Window> m_window;
-
-        Particles m_particles;
-        Physics   m_physics;
-
     public:
-        Application() : Component()
+        Physics m_physics;
+        Particles m_particles;
+        Application(uint32_t global_id) : Component(global_id)
         {
             auto physics   = std::make_shared<Physics>(m_physics);
             auto particles = std::make_shared<Particles>(m_particles);
@@ -33,18 +31,14 @@ namespace Sirion
                                                 m_application_config.m_height,
                                                 m_application_config.m_title,
                                                 physics,
-                                                particles
-
-            );
-
+                                                particles);
+            
         }
 
         void init()
         {
             m_particles.init();
             m_physics.updateOrbit(0.0f, 0.0f, 0.0f);
-            // m_vulkanInstance = std::make_shared<VulkanInstance>(m_window->getPointer());
-            // m_window->assignVulkan(std::weak_ptr<VulkanInstance>(m_vulkanInstance));
         }
 
         ~Application() {}
@@ -53,6 +47,17 @@ namespace Sirion
 
         std::weak_ptr<Window> getWindow() { return std::weak_ptr<Window>(m_window); }
 
-        virtual void updatePrimitives(float delta_x, float delta_y, float delta_z) { return; };
+    };
+
+    class ApplicationFactory: public ComponentFactory
+    {
+    protected:
+        virtual std::shared_ptr<Component> createInstance()
+        {
+            m_global_id++;
+            auto res = std::make_shared<Application>(m_global_id);
+            ComponentManager::getInstance().add(res);
+            return res;
+        }
     };
 } // namespace Sirion

@@ -1,12 +1,13 @@
 #pragma once
 
 #define GLFW_INCLUDE_VULKAN
+#include <GLFW/glfw3.h>
+#include <functional>
 #include "main/core/manager/component_manager.h"
 #include "main/vulkan_wrapper/vulkan_instance.h"
 #include "particles/particles.h"
 #include "physics/base.h"
-#include <GLFW/glfw3.h>
-#include <functional>
+
 
 namespace Sirion
 {
