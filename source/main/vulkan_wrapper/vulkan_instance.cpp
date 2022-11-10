@@ -1,16 +1,15 @@
 #include "vulkan_instance.h"
 #include <stb_image.h>
 #include <tiny_obj_loader.h>
-//#include "vulkan_utils.h"
 
 namespace Sirion
 {
     void
     VulkanInstance::init(GLFWwindow* pWindow, std::shared_ptr<Particles> particles, std::shared_ptr<Physics> physics)
     {
-        m_window = pWindow;
-        m_particles = std::shared_ptr<Particles>(particles);
-        m_physics   = std::shared_ptr<Physics>(physics);
+        m_window        = pWindow;
+        m_particles     = std::shared_ptr<Particles>(particles);
+        m_physics       = std::shared_ptr<Physics>(physics);
         m_cellVertArray = new int[m_physics->m_numGridCells * 6] {0};
         m_cellVertCount = new int[m_physics->m_numGridCells] {0};
         createInstance();
@@ -57,6 +56,11 @@ namespace Sirion
         m_device->destroyDescriptorPool(m_computeDescriptorPool);
         m_device->destroyDescriptorSetLayout(m_computeDescriptorSetLayout);
 
+        m_device->destroyPipeline(m_graphicsPipeline);
+        m_device->destroyPipelineLayout(m_pipelineLayout);
+        m_device->destroyRenderPass(m_renderPass);
+        m_device->destroyDescriptorPool(m_descriptorPool);
+
         // The main texture image is used until the end of the program:
         m_device->destroySampler(m_textureSampler);
         m_device->destroyImageView(m_textureImageView);
@@ -84,7 +88,6 @@ namespace Sirion
             m_device->destroyFence(m_inFlightFences[i]);
         }
         m_device->destroyCommandPool(m_commandPool);
-        // surface is created by glfw, therefore not using a Unique handle
         m_instance->destroySurfaceKHR(m_surface);
 
         /*if (enableValidationLayers) {
@@ -487,7 +490,7 @@ namespace Sirion
                                               vk::ImageUsageFlagBits::eColorAttachment);
 
         VulkanUtils::QueueFamilyIndices indices = findQueueFamilies(m_physicalDevice);
-        uint32_t           queueFamilyIndices[] = {indices.graphicsFamily.value(), indices.presentFamily.value()};
+        uint32_t queueFamilyIndices[]           = {indices.graphicsFamily.value(), indices.presentFamily.value()};
 
         if (indices.graphicsFamily != indices.presentFamily)
         {
@@ -697,7 +700,7 @@ namespace Sirion
         samplerLayoutBinding.stageFlags = vk::ShaderStageFlagBits::eFragment;
 
         std::array<vk::DescriptorSetLayoutBinding, 2> bindings = {uboLayoutBinding, samplerLayoutBinding};
-        vk::DescriptorSetLayoutCreateInfo descriptorLayoutInfo {};
+        vk::DescriptorSetLayoutCreateInfo             descriptorLayoutInfo {};
         descriptorLayoutInfo.flags        = vk::DescriptorSetLayoutCreateFlags();
         descriptorLayoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
         descriptorLayoutInfo.pBindings    = bindings.data();
@@ -920,7 +923,6 @@ namespace Sirion
         m_device->bindImageMemory(image, imageMemory, 0);
     }
 
-
     void VulkanInstance::createDepthResources()
     {
         // Find the depth format first
@@ -1130,7 +1132,6 @@ namespace Sirion
 
         endSingleTimeCommands(commandBuffer);
     }
-
 
     void VulkanInstance::createTextureImage()
     {
@@ -1578,7 +1579,7 @@ namespace Sirion
         vk::DescriptorBufferInfo computeBufferInfoVertices1 = {};
         computeBufferInfoVertices1.buffer                   = m_vertexBuffer1;
         computeBufferInfoVertices1.offset                   = 0;
-        computeBufferInfoVertices1.range                    = static_cast<uint32_t>(m_particles->m_raw_verts.size() * sizeof(Vertex));
+        computeBufferInfoVertices1.range = static_cast<uint32_t>(m_particles->m_raw_verts.size() * sizeof(Vertex));
 
         vk::WriteDescriptorSet writeComputeInfoVertices1 = {};
         writeComputeInfoVertices1.dstSet                 = m_computeDescriptorSet[0];
@@ -1850,12 +1851,12 @@ namespace Sirion
             // vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0,
             // 1, &ComputeDescriptorSet, 0, nullptr);
             m_commandBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eCompute,
-                                                 m_computePipelineLayout,
-                                                 0,
-                                                 1,
+                                                   m_computePipelineLayout,
+                                                   0,
+                                                   1,
                                                    m_computeDescriptorSet.data(),
-                                                 0,
-                                                 nullptr);
+                                                   0,
+                                                   nullptr);
 
             // Dispatch the compute kernel, with one thread for each vertex
             m_commandBuffers[i].dispatch(m_physics->m_numGridCells, 1, 1);
@@ -1872,14 +1873,14 @@ namespace Sirion
             vk::PipelineStageFlags computeShaderStageFlags_1(vk::PipelineStageFlagBits::eComputeShader);
             vk::PipelineStageFlags computeShaderStageFlags_2(vk::PipelineStageFlagBits::eComputeShader);
             m_commandBuffers[i].pipelineBarrier(computeShaderStageFlags_1,
-                                              computeShaderStageFlags_2,
-                                              vk::DependencyFlags(),
-                                              0,
-                                              nullptr,
-                                              1,
-                                              &computeToComputeBarrier,
-                                              0,
-                                              nullptr);
+                                                computeShaderStageFlags_2,
+                                                vk::DependencyFlags(),
+                                                0,
+                                                nullptr,
+                                                1,
+                                                &computeToComputeBarrier,
+                                                0,
+                                                nullptr);
 
             // Bind the compute pipeline
             // vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipelinePhysics);
@@ -1889,12 +1890,12 @@ namespace Sirion
             // vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0,
             // 1, &ComputeDescriptorSet, 0, nullptr);
             m_commandBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eCompute,
-                                                 m_computePipelineLayout,
-                                                 0,
-                                                 1,
+                                                   m_computePipelineLayout,
+                                                   0,
+                                                   1,
                                                    m_computeDescriptorSet.data(),
-                                                 0,
-                                                 nullptr);
+                                                   0,
+                                                   nullptr);
 
             // Dispatch the compute kernel, with one thread for each vertex
             m_commandBuffers[i].dispatch(uint32_t(m_particles->m_raw_verts.size()), 1, 1);
@@ -1911,14 +1912,14 @@ namespace Sirion
             vk::PipelineStageFlags computeShaderStageFlags_3(vk::PipelineStageFlagBits::eComputeShader);
             vk::PipelineStageFlags computeShaderStageFlags_4(vk::PipelineStageFlagBits::eComputeShader);
             m_commandBuffers[i].pipelineBarrier(computeShaderStageFlags_3,
-                                              computeShaderStageFlags_4,
-                                              vk::DependencyFlags(),
-                                              0,
-                                              nullptr,
-                                              1,
-                                              &computeToComputeBarrier1,
-                                              0,
-                                              nullptr);
+                                                computeShaderStageFlags_4,
+                                                vk::DependencyFlags(),
+                                                0,
+                                                nullptr,
+                                                1,
+                                                &computeToComputeBarrier1,
+                                                0,
+                                                nullptr);
 
             // Bind the compute pipeline
             // vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipelinePhysics);
@@ -1928,12 +1929,12 @@ namespace Sirion
             // vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0,
             // 1, &ComputeDescriptorSet, 0, nullptr);
             m_commandBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eCompute,
-                                                 m_computePipelineLayout,
-                                                 0,
-                                                 1,
-                                                 m_computeDescriptorSet.data(),
-                                                 0,
-                                                 nullptr);
+                                                   m_computePipelineLayout,
+                                                   0,
+                                                   1,
+                                                   m_computeDescriptorSet.data(),
+                                                   0,
+                                                   nullptr);
 
             // Dispatch the compute kernel, with one thread for each vertex
             m_commandBuffers[i].dispatch(uint32_t(m_particles->m_raw_verts.size()), 1, 1);
@@ -1951,14 +1952,14 @@ namespace Sirion
             vk::PipelineStageFlags computeShaderStageFlags_5(vk::PipelineStageFlagBits::eComputeShader);
             vk::PipelineStageFlags computeShaderStageFlags_6(vk::PipelineStageFlagBits::eComputeShader);
             m_commandBuffers[i].pipelineBarrier(computeShaderStageFlags_5,
-                                              computeShaderStageFlags_6,
-                                              vk::DependencyFlags(),
-                                              0,
-                                              nullptr,
-                                              1,
-                                              &computeToComputeBarrier2,
-                                              0,
-                                              nullptr);
+                                                computeShaderStageFlags_6,
+                                                vk::DependencyFlags(),
+                                                0,
+                                                nullptr,
+                                                1,
+                                                &computeToComputeBarrier2,
+                                                0,
+                                                nullptr);
 
             // Bind the compute pipeline
             // vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipelinePhysics);
@@ -1968,12 +1969,12 @@ namespace Sirion
             // vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0,
             // 1, &ComputeDescriptorSet, 0, nullptr);
             m_commandBuffers[i].bindDescriptorSets(vk::PipelineBindPoint::eCompute,
-                                                 m_computePipelineLayout,
-                                                 0,
-                                                 1,
-                                                 m_computeDescriptorSet.data(),
-                                                 0,
-                                                 nullptr);
+                                                   m_computePipelineLayout,
+                                                   0,
+                                                   1,
+                                                   m_computeDescriptorSet.data(),
+                                                   0,
+                                                   nullptr);
 
             // Dispatch the compute kernel, with one thread for each vertex
             m_commandBuffers[i].dispatch(uint32_t(m_particles->m_sphere_verts.size()), 1, 1);
@@ -1993,14 +1994,14 @@ namespace Sirion
             vk::PipelineStageFlags computeShaderStageFlags(vk::PipelineStageFlagBits::eComputeShader);
             vk::PipelineStageFlags vertexShaderStageFlags(vk::PipelineStageFlagBits::eVertexInput);
             m_commandBuffers[i].pipelineBarrier(computeShaderStageFlags,
-                                              vertexShaderStageFlags,
-                                              vk::DependencyFlags(),
-                                              0,
-                                              nullptr,
-                                              1,
-                                              &computeToVertexBarrier,
-                                              0,
-                                              nullptr);
+                                                vertexShaderStageFlags,
+                                                vk::DependencyFlags(),
+                                                0,
+                                                nullptr,
+                                                1,
+                                                &computeToVertexBarrier,
+                                                0,
+                                                nullptr);
 
             m_commandBuffers[i].beginRenderPass(renderPassInfo, vk::SubpassContents::eInline);
             m_commandBuffers[i].bindPipeline(vk::PipelineBindPoint::eGraphics, m_graphicsPipeline);
@@ -2062,9 +2063,7 @@ namespace Sirion
 
         m_device->freeCommandBuffers(m_commandPool, m_commandBuffers);
 
-        m_device->destroyPipeline(m_graphicsPipeline);
-        m_device->destroyPipelineLayout(m_pipelineLayout);
-        m_device->destroyRenderPass(m_renderPass);
+        
 
         for (auto imageView : m_swapChainImageViews)
         {
@@ -2077,7 +2076,7 @@ namespace Sirion
             m_device->freeMemory(m_uniformUboBuffersMemory[i]);
         }
 
-        m_device->destroyDescriptorPool(m_descriptorPool);
+        
         m_device->destroySwapchainKHR(m_swapChain);
     }
 
@@ -2121,16 +2120,5 @@ namespace Sirion
         memcpy(data, &ubo, sizeof(ubo));
         m_device->unmapMemory(m_uniformUboBuffersMemory[currentImage]);
     }
-
-
-
-
-
-
-
-
-
-
-
 
 } // namespace Sirion

@@ -35,6 +35,15 @@ function(compile_shader SHADERS TARGET_NAME SHADER_INCLUDE_FOLDER GENERATED_DIR 
 
     endforeach()
 
+    set(OUTPUT_ALL_HEADER "all.h")
+
+    add_custom_command(
+            OUTPUT ${OUTPUT_ALL_HEADER}
+            COMMAND ${CMAKE_COMMAND} -DPATH=${ALL_GENERATED_CPP_FILES} -DHEADER="${OUTPUT_ALL_HEADER}" 
+                -DGLOBAL="${GLOBAL_SHADER_VAR}" -P "${PROJECT_SOURCE_DIR}/cmake/generate_shader_includes.cmake"
+            DEPENDS ${ALL_GENERATED_CPP_FILES}
+            WORKING_DIRECTORY "${working_dir}")
+
     add_custom_target(${TARGET_NAME}
         DEPENDS ${ALL_GENERATED_SPV_FILES} ${ALL_GENERATED_CPP_FILES} SOURCE ${SHADERS})
 
