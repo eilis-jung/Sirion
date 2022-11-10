@@ -59,7 +59,8 @@ namespace Sirion
     class Particles
     {
     public:
-        Particles() {};
+        Particles() { init();
+        };
         std::vector<Vertex>   m_verts;
         std::vector<uint32_t> m_indices;
         std::vector<Vertex>   m_raw_verts;

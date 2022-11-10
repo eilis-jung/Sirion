@@ -78,8 +78,8 @@ namespace Sirion
         vk::Buffer                   m_cellVertCountBuffer;
         vk::DeviceMemory             m_cellVertCountBufferMemory;
 
-        int* m_cellVertArray = new int[m_physics->m_numGridCells * 6] {0};
-        int* m_cellVertCount = new int[m_physics->m_numGridCells] {0};
+        int* m_cellVertArray;
+        int* m_cellVertCount;
 
         vk::Buffer       m_sphereVertsBuffer;
         vk::DeviceMemory m_sphereVertsBufferMemory;

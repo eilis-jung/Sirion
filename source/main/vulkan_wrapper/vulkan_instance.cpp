@@ -9,8 +9,10 @@ namespace Sirion
     VulkanInstance::init(GLFWwindow* pWindow, std::shared_ptr<Particles> particles, std::shared_ptr<Physics> physics)
     {
         m_window = pWindow;
-        //m_particles = std::make_shared<Particles>(particles);
-        //m_physics   = std::make_shared<Physics>(physics);
+        m_particles = std::shared_ptr<Particles>(particles);
+        m_physics   = std::shared_ptr<Physics>(physics);
+        m_cellVertArray = new int[m_physics->m_numGridCells * 6] {0};
+        m_cellVertCount = new int[m_physics->m_numGridCells] {0};
         createInstance();
         createSurface();
         pickPhysicalDevice();
@@ -713,7 +715,7 @@ namespace Sirion
     void VulkanInstance::createGraphicsPipeline()
     {
         vk::UniqueShaderModule vertShaderModule = VulkanUtils::createShaderModule(m_device, SHADER_VERT);
-        vk::UniqueShaderModule fragShaderModule = VulkanUtils::createShaderModule(m_device, SHADER_VERT);
+        vk::UniqueShaderModule fragShaderModule = VulkanUtils::createShaderModule(m_device, SHADER_FRAG);
 
         vk::PipelineShaderStageCreateInfo shaderStages[] = {
             {vk::PipelineShaderStageCreateFlags(), vk::ShaderStageFlagBits::eVertex, *vertShaderModule, "main"},

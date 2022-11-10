@@ -19,7 +19,7 @@ include_directories("${SIRION_EXTERNAL_DIR}/stb")
 include_directories("${SIRION_ROOT_DIR}")
 add_executable(${TARGET_NAME} ${SOURCES} ${HEADERS})
 add_dependencies(${TARGET_NAME} glfw json11 )
-add_dependencies(${TARGET_NAME} SirionPrecompile SirionMath SirionPhysics SirionParticles)
+add_dependencies(${TARGET_NAME} SirionPrecompile SirionShader SirionMath SirionPhysics SirionParticles)
 target_link_libraries(${TARGET_NAME} glfw ${Vulkan_LIBRARY} json11 SirionMath SirionPhysics SirionParticles)
 # target_include_directories(
 #   ${TARGET_NAME}
