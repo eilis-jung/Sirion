@@ -12,6 +12,7 @@ namespace Sirion
         m_physics       = std::shared_ptr<Physics>(physics);
         m_cellVertArray = new int[m_physics->m_numGridCells * 6] {0};
         m_cellVertCount = new int[m_physics->m_numGridCells] {0};
+        m_physics->m_internal_id = 3;
         createInstance();
         createSurface();
         pickPhysicalDevice();

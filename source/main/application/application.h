@@ -20,6 +20,8 @@ namespace Sirion
     protected:
         ApplicationConfig       m_application_config;
         std::shared_ptr<Window> m_window;
+        //std::shared_ptr<Physics> m_physics;
+
     public:
         Physics m_physics;
         Particles m_particles;
