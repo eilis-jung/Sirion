@@ -2,6 +2,12 @@
 source/shader/generated/
 _generated
 
+## Non-asset files
+/bin/*.obj
+/build/*.obj
+/libs/*.obj
+/source/*.obj
+
 ## Generated build results
 build/
 bin/
@@ -108,7 +114,6 @@ StyleCopReport.xml
 *_h.h
 *.ilk
 *.meta
-*.obj
 *.iobj
 *.pch
 *.pdb
