@@ -6,7 +6,7 @@ namespace Sirion
     bool   Sirion::Window::m_mouse_right_down  = false;
     double Sirion::Window::m_prev_x            = 0;
     double Sirion::Window::m_prev_y            = 0;
-    double Sirion::Window::m_mouse_sensitivity = 0.5;
+    double Sirion::Window::m_mouse_sensitivity = 5;
     bool   Sirion::Window::framebufferResized  = false;
 
     void Sirion::Window::mouseDownCallback(GLFWwindow* window, int button, int action, int mods)

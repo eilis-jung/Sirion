@@ -9,6 +9,8 @@ namespace Sirion
     class Physics
     {
     public:
+        static uint32_t m_id;
+        int        m_internal_id;
         int     m_numGridCells        = 1000000;
         int     m_numSide             = 30;
         int     m_numForVisualization = m_numSide * m_numSide * m_numSide;
@@ -20,7 +22,9 @@ namespace Sirion
         Vector3 eye                   = Vector3(5.0f, 10.0f, r);
         Matrix4 m_viewMat             = glm::lookAt(eye, Vector3(2.0f, 2.0f, 2.0f), Vector3(0.0f, 1.0f, 0.0f));
 
-        Physics() {}
+        Physics() { m_internal_id = m_id;
+            m_id++;
+        }
 
         const Matrix4 m_sphereScaleMatrix =
             glm::scale(Matrix4(1), Vector3(m_sphereScaleFactor, m_sphereScaleFactor, m_sphereScaleFactor));
