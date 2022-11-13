@@ -20,27 +20,25 @@ namespace Sirion
     protected:
         ApplicationConfig       m_application_config;
         std::shared_ptr<Window> m_window;
-        //std::shared_ptr<Physics> m_physics;
 
     public:
-        Physics m_physics;
-        Particles m_particles;
+        std::shared_ptr<Physics>   m_physics;
+        std::shared_ptr<Particles> m_particles;
         Application(uint32_t global_id) : Component(global_id)
         {
-            auto physics   = std::make_shared<Physics>(m_physics);
-            auto particles = std::make_shared<Particles>(m_particles);
-            m_window       = std::make_shared<Window>(m_application_config.m_width,
+            m_physics   = std::make_shared<Physics>();
+            m_particles = std::make_shared<Particles>();
+            m_window    = std::make_shared<Window>(m_application_config.m_width,
                                                 m_application_config.m_height,
                                                 m_application_config.m_title,
-                                                physics,
-                                                particles);
-            
+                                                m_physics,
+                                                m_particles);
         }
 
         void init()
         {
-            m_particles.init();
-            m_physics.updateOrbit(0.0f, 0.0f, 0.0f);
+            m_particles->init();
+            m_physics->updateOrbit(0.0f, 0.0f, 0.0f);
         }
 
         ~Application() {}
@@ -48,10 +46,9 @@ namespace Sirion
         void run() { m_window->loop(); }
 
         std::weak_ptr<Window> getWindow() { return std::weak_ptr<Window>(m_window); }
-
     };
 
-    class ApplicationFactory: public ComponentFactory
+    class ApplicationFactory : public ComponentFactory
     {
     protected:
         virtual std::shared_ptr<Component> createInstance()

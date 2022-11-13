@@ -6,7 +6,7 @@ namespace Sirion
     bool   Sirion::Window::m_mouse_right_down  = false;
     double Sirion::Window::m_prev_x            = 0;
     double Sirion::Window::m_prev_y            = 0;
-    double Sirion::Window::m_mouse_sensitivity = 5;
+    double Sirion::Window::m_mouse_sensitivity = 0.5;
     bool   Sirion::Window::framebufferResized  = false;
 
     void Sirion::Window::mouseDownCallback(GLFWwindow* window, int button, int action, int mods)
@@ -61,13 +61,13 @@ namespace Sirion
             m_prev_x = pos_x;
             m_prev_y = pos_y;
             
-            app->m_physics.updateOrbit(delta_x, delta_y, 0.0f);
+            app->m_physics->updateOrbit(delta_x, delta_y, 0.0f);
         }
         else if (m_mouse_right_down)
         {
             float delta_z = static_cast<float>((m_prev_y - pos_y) * 0.05f);
             m_prev_y      = pos_y;
-            app->m_physics.updateOrbit(0.0f, 0.0f, delta_z);
+            app->m_physics->updateOrbit(0.0f, 0.0f, delta_z);
         }
     }
     void Sirion::Window::framebufferResizeCallback(GLFWwindow* window, int width, int height)
