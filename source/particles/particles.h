@@ -76,13 +76,13 @@ namespace Sirion
         {
             loadModel(m_sphere_obj_path);
             int             idxForWholeVertices = 0;
-            const glm::vec3 OFFSET(0.05f, 0.05f, 0.05f);
-            PointsGenerator::createTanglecube(m_raw_verts,
+            const Vector3 OFFSET(0.05f, 0.05f, 0.05f);
+            PointsGenerator::createHeart(m_raw_verts,
                                               m_raw_indices,
                                               idxForWholeVertices,
                                               45,
-                                              glm::vec3(2.05f, 3.06f, 2.05f),
-                                              glm::vec3(1.f, 0.f, 0.f));
+                                              Vector3(2.05f, 3.06f, 2.05f),
+                                              Vector3(1.f, 0.f, 0.f));
 
             int sphereIdx = 0;
             for (int i = 0; i < m_raw_verts.size(); i++)

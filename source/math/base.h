@@ -4,12 +4,13 @@
 #include <cmath>
 #include <limits>
 #include <glm/glm.hpp>
-
+#include "main/serializer/reflection.h"
 namespace Sirion
 {
     using Vector3 = glm::vec3;
     using Vector4 = glm::vec4;
     using Matrix4 = glm::mat4;
+
 
     static const float Math_POS_INFINITY = std::numeric_limits<float>::infinity();
     static const float Math_NEG_INFINITY = -std::numeric_limits<float>::infinity();
@@ -24,5 +25,4 @@ namespace Sirion
 
     static const float Float_EPSILON  = FLT_EPSILON;
     static const float Double_EPSILON = DBL_EPSILON;
-
 }
